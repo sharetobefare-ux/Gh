@@ -266,6 +266,8 @@ textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(-
 .mono{font:13px/1.55 ui-monospace,Menlo,monospace;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word}
 .toast{position:absolute;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;padding:10px 18px;border-radius:20px;background:var(--ink);color:#FFF8F0;font-size:14px;font-weight:600;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s}
 .toast.on{opacity:1}
+.banner.install{width:100%;max-width:340px;color:var(--wine);background:var(--wine-soft);border-color:rgba(122,34,54,.2)}
+.wrap>.banner.install{max-width:none}
 .banner{font-size:12.5px;color:var(--wait);background:rgba(182,134,44,.08);border:1px solid rgba(182,134,44,.25);border-radius:12px;padding:10px 12px;line-height:1.6}
 
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
@@ -619,6 +621,16 @@ function summaryMD(scope="all"){const now=new Date();const f=finance(now);const 
  if(k.includes("wird")){const R=REL();L.push("","## العبادات",`- ورد القرآن: ${R.q.on?`صفحة ${R.q.page} من 604، ${R.q.per} صفحات يومياً`:"غير مفعّل"}`);for(const w of recs("wird"))L.push(`- ${w.title} (${REC[w.recur||"daily"]})`)}
  return L.join("\n").trim()}
 
+/* ───────── install hint: the app only behaves like an app when opened from its home-screen icon ───────── */
+const LS_H="gh.hint.v1";
+const isStandalone=()=>{try{return navigator.standalone===true||matchMedia("(display-mode: standalone)").matches}catch(e){return false}};
+const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const inAppBrowser=/FBAN|FBAV|Instagram|Line\/|Snapchat|Twitter|TikTok|musical_ly|GSA\//.test(navigator.userAgent);
+function installHint(){if(isStandalone())return"";const until=+(store.get(LS_H)||0);if(until&&Date.now()<until)return"";
+ const how=inAppBrowser?"أنت داخل متصفح تطبيق ثاني. اضغط ⋯ واختر «فتح في Safari»، وبعدها اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».":isIOS?"في Safari اضغط زر المشاركة، ثم «إضافة إلى الشاشة الرئيسية»، وافتح gh من أيقونته. إذا ما لقيت الخيار، افتح الرابط في Safari نفسه وليس من داخل تطبيق ثاني.":"من قائمة المتصفح اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»، وافتحه من أيقونته.";
+ return`<div class="banner install" role="note"><b>أنت فاتحه من المتصفح، وليس كتطبيق</b><br>${how}<br>بيانات المتصفح منفصلة عن بيانات التطبيق المثبّت. إذا سجّلت بيانات هنا، خذ نسخة احتياطية من الإعدادات وانقلها.<div style="margin-top:8px"><button class="btn ghost sm" data-hint="later">ذكّرني بعد 3 أيام</button></div></div>`}
+app.addEventListener("click",e=>{const h=e.target.closest("[data-hint]");if(!h)return;store.set(LS_H,String(Date.now()+3*864e5));const b=h.closest(".install");if(b)b.remove()});
+
 /* ───────── LOGIN ───────── */
 const KEYS=["1","2","3","@","4","5","6","&","7","8","9","#",".","0","*","del"];
 function lockState(){try{return JSON.parse(store.get(LS_L)||"{}")}catch(e){return{}}}
@@ -626,6 +638,7 @@ function setLock(o){store.set(LS_L,JSON.stringify(o))}
 function renderLogin(){const el=$("#login");const has=!!vaultBlob();const now=new Date();
  el.innerHTML=`<div class="medal">${KHATAM()}${MARK}</div><div class="wordclock tab" id="lclock">${esc(fClock.format(now))}</div>
  <div class="dates"><b>${esc(fHijri.format(now))}</b><br>${esc(fGreg.format(now))}</div>
+ ${installHint()}
  ${storageOK?"":`<div class="banner">التخزين غير متاح في هذا العرض، فبياناتك تبقى في الذاكرة حتى تغلق الصفحة.</div>`}
  <div id="stage" style="display:flex;flex-direction:column;align-items:center;gap:16px;width:100%"></div>`;
  has?codeStage({title:"أدخل رمز الدخول",onDone:tryUnlock}):nameStage()}
@@ -1317,6 +1330,7 @@ function renderHome(){const el=$("#s-home");const now=new Date(),ds=ymd(now);con
  const lateN=sc.list.filter(t=>lateMins(t,(V.log[ds]||{})[t.id],ds)).length;const weak=A.areas.filter(a=>a.tot>0).sort((x,y)=>x.pct-y.pct)[0];
  el.innerHTML=`<div class="paper-grain"></div><div class="bar" style="background:transparent;border:0;backdrop-filter:none;-webkit-backdrop-filter:none"><span></span><h1></h1><span class="end"><button class="ib rd" data-go="s-settings" aria-label="الإعدادات">${I.gear}</button></span></div>
  <div class="wrap">
+  ${installHint()}
   <div class="hello"><span class="k">${h<12?"صباح الخير":"مساء الخير"}</span><h2>${esc(V.name)}</h2><p>${esc(fHijri.format(now))} · ${esc(fGreg.format(now))}</p></div>
   <button class="card pin dashcard" data-go="s-dash" style="text-align:start;width:100%"><div class="score">${ring(A.overall)}<div class="lbl"><b>لوحة النجاح</b><br>الأساسيات اليوم <b class="num">${cd.done}/${cd.total}</b>${lateN?` · <b class="neg">${lateN} متأخرة</b>`:""}<br>${weak&&weak.pct<70?`<span class="neg">التقصير: ${weak.n} ${weak.pct}%</span>`:`<span class="mut">${A.overall==null?"علّم مهامك لتظهر نتيجتك":"أداء متوازن"}</span>`}</div></div></button>
   ${focusCard(ds)}
