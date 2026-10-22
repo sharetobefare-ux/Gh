@@ -26,7 +26,7 @@
 :root{
   --paper:#F5F2EC; --paper-2:#EFEAE0; --card:#FFFDF9; --ink:#2B2326; --ink-2:rgba(43,35,38,.68); --ink-3:rgba(43,35,38,.44);
   --line:rgba(169,130,58,.26); --line-2:rgba(169,130,58,.14); --gold:#A9823A; --gold-2:#C8A45E; --wine:#7A2236; --wine-2:#9B3A4F; --wine-soft:rgba(122,34,54,.07);
-  --ok:#4D7A5A; --bad:#B0453B; --wait:#B6862C;
+  --ok:#4D7A5A; --bad:#B0453B; --wait:#B6862C; --hl:#3F7F8C;
   --kufi:"Reem Kufi","Geeza Pro","Noto Kufi Arabic",system-ui,sans-serif;
   --ui:-apple-system,"SF Arabic","SF Pro Text",system-ui,"Segoe UI",Tahoma,sans-serif;
   --r:18px; color-scheme:light;
@@ -210,7 +210,8 @@ textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(-
 .pv{display:flex;align-items:center;gap:12px;padding:12px 16px}
 .pv+.pv{border-top:1px solid var(--line-2)}
 .pv .tag{font-size:11px;padding:3px 8px;border-radius:7px;flex:none;font-weight:600}
-.tag.debt{background:rgba(176,69,59,.1);color:var(--bad)} .tag.income{background:rgba(77,122,90,.12);color:var(--ok)} .tag.expense{background:rgba(182,134,44,.12);color:var(--wait)} .tag.task{background:var(--wine-soft);color:var(--wine)}
+.tag.debt{background:rgba(176,69,59,.1);color:var(--bad)} .tag.income{background:rgba(77,122,90,.12);color:var(--ok)} .tag.expense{background:rgba(182,134,44,.12);color:var(--wait)} .tag.task{background:var(--wine-soft);color:var(--wine)} .tag.med,.tag.appt{background:rgba(63,127,140,.12);color:var(--hl)} .tag.wird{background:rgba(169,130,58,.14);color:var(--gold)}
+.pill.on{background:var(--wine);color:#fff;border-color:var(--wine)}
 .pv .err{color:var(--bad);font-size:12px}
 .toggle-row{display:flex;align-items:center;gap:12px;padding:12px 16px;font-size:14px;color:var(--ink-2)}
 
@@ -260,6 +261,7 @@ textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(-
   <section class="screen" id="s-schedule" hidden></section>
   <section class="screen" id="s-add" hidden></section>
   <section class="screen" id="s-religion" hidden></section>
+  <section class="screen" id="s-health" hidden></section>
   <section class="screen" id="s-settings" hidden></section>
   <div class="toast" id="toast" role="status"></div>
 </div>
@@ -341,7 +343,8 @@ function migrate(d){if(d.v===2&&Array.isArray(d.records))return d;const r=[...(d
  return{v:2,name:d.name,created:d.created||ymd(new Date()),settings:d.settings||{city:"riyadh",tz:3,prayers:true},records:r,log:d.log||{},carry:d.carry||{}}}
 const recs=k=>V.records.filter(r=>r.kind===k);
 const byId=id=>V.records.find(r=>r.id===id);
-const finRecs=()=>V.records.filter(r=>r.kind!=="task");
+const FINK=["debt","income","expense"];
+const finRecs=()=>V.records.filter(r=>FINK.includes(r.kind));
 function removeRecord(id){V.records=V.records.filter(r=>r.id!==id);for(const r of V.records)if(r.link===id)delete r.link}
 
 /* ───────── springs (response + damping, interruptible) ───────── */
@@ -416,9 +419,9 @@ function nextPrayer(now=new Date()){const c=city();const t=prayerTimes(now,c.lat
 const FREQ={daily:["يومي",365/12],weekly:["أسبوعي",52/12],monthly:["شهري",1],yearly:["سنوي",1/12],once:["مرة واحدة",0]};
 const CAT={income:{salary:"راتب",freelance:"عمل حر",business:"تجارة",rent:"إيجار",invest:"استثمار",other:"أخرى"},
  debt:{personal:"تمويل شخصي",home:"تمويل عقاري",car:"تمويل سيارة",card:"بطاقة ائتمانية",private:"دين لشخص",other:"أخرى"},
- expense:{housing:"سكن",bills:"فواتير",transport:"مواصلات",food:"أكل",family:"أسرة",subs:"اشتراكات",other:"أخرى"},
- task:{general:"عام",money:"مالي",personal:"شخصي",work:"عمل"}};
-const KIND={income:"دخل",debt:"دين",expense:"مصروف",task:"مهمة"};
+ expense:{housing:"سكن",bills:"فواتير",transport:"مواصلات",food:"أكل",family:"أسرة",subs:"اشتراكات",charity:"صدقة وزكاة",health:"صحة",other:"أخرى"},
+ task:{general:"عام",money:"مالي",personal:"شخصي",work:"عمل",religion:"ديني",health:"صحي"}};
+const KIND={income:"دخل",debt:"دين",expense:"مصروف",task:"مهمة",med:"دواء",appt:"موعد",wird:"ورد"};
 function loan(it){const P=it.amount||0,n=Math.max(1,Math.round(it.months||1)),r=(it.rate||0)/100;let inst,profit;
  if(r<=0){inst=P/n;profit=0}else if(it.rateType==="reducing"){const i=r/12;inst=P*i/(1-Math.pow(1+i,-n));profit=inst*n-P}else{profit=P*r*n/12;inst=(P+profit)/n}
  let apr=0;if(profit>0.01){let lo=0,hi=1;for(let k=0;k<80;k++){const i=(lo+hi)/2;const pv=inst*(1-Math.pow(1+i,-n))/i;pv>P?lo=i:hi=i}apr=((lo+hi)/2)*12*100}
@@ -449,16 +452,17 @@ function upcoming(days=30){const t0=startOfDay(new Date()),t1=addDays(t0,days);c
 
 /* ───────── tasks engine (prayers + linked finance tasks + own tasks) ───────── */
 const REC={once:"مرة",daily:"يومي",weekly:"أسبوعي",monthly:"شهري",yearly:"سنوي"};
-const TCOL={prayer:"--ok",money:"--gold",general:"--wine",personal:"--wait",work:"--wine-2"};
-const TNAME={prayer:"صلاة",money:"مالي",general:"عام",personal:"شخصي",work:"عمل"};
+const TCOL={prayer:"--ok",money:"--gold",general:"--wine",personal:"--wait",work:"--wine-2",religion:"--gold",health:"--hl"};
+const TNAME={prayer:"صلاة",money:"مالي",general:"عام",personal:"شخصي",work:"عمل",religion:"ديني",health:"صحي"};
 function occurs(tk,ds){const d=parse(ds),s=parse(tk.date);if(d<s)return false;switch(tk.recur){case"once":return ds===tk.date;case"daily":return true;case"weekly":return d.getDay()===s.getDay();
  case"monthly":{const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();return d.getDate()===Math.min(s.getDate(),last)}case"yearly":return d.getMonth()===s.getMonth()&&d.getDate()===s.getDate()}return false}
 function tasksFor(ds){const d=parse(ds);const list=[];const c=city();
- if(V.settings.prayers!==false){const t=prayerTimes(d,c.lat,c.lng,c.tz);for(const [k,n] of PRAYERS)list.push({id:"p-"+k,title:"صلاة "+n,time:t[k],cat:"prayer"})}
+ const t=prayerTimes(d,c.lat,c.lng,c.tz);if(V.settings.prayers!==false){for(const [k,n] of PRAYERS)list.push({id:"p-"+k,title:"صلاة "+n,time:t[k],cat:"prayer"})}
  for(const it of finRecs()){
   if(it.kind==="income"&&it.work&&it.work.on){const s=parse(it.start);const end=it.months?addMonths(s,it.months):null;const ok=d>=s&&(it.work.recur==="daily"||d.getDay()===(it.work.weekday??s.getDay()));if(ok&&(!end||d<end))list.push({id:"w-"+it.id,title:"وقت عمل: "+it.title,time:hhmmToH(it.work.time),cat:"money",link:it.id})}
   if(it.remind!==false&&(it.kind==="debt"||(it.kind==="expense"&&["monthly","yearly","once"].includes(it.freq||"monthly")))){
    for(const o of occDates(it,d,d))list.push(it.kind==="debt"?{id:`d-${it.id}-${o.k}`,title:`سداد القسط ${o.k} من ${o.n}`,cat:"money",link:it.id,time:null}:{id:`e-${it.id}-${ds}`,title:`دفع ${it.title}`,cat:"money",link:it.id,time:null})}}
+ {const fn=fastName(d);list.push(...relTasks(ds,d,t,fn),...healthTasks(ds,d,t,fn))}
  for(const tk of recs("task"))if(occurs(tk,ds))list.push({id:"t-"+tk.id,title:tk.title,time:hhmmToH(tk.time),cat:tk.cat||"general",ref:tk.id,link:tk.link});
  const prev=ymd(addDays(d,-1)),pl=V.log[prev]||{};const have=new Set(list.map(x=>x.id));
  for(const id in pl)if(pl[id]==="later"&&!have.has(id)){const src=V.carry?.[id];if(src)list.push({...src,id,carried:true})}
@@ -468,9 +472,11 @@ function dayScore(ds,isPast){if(V.created&&ds<V.created)return{list:[],done:0,la
  const tot=done+later+miss;return{list,done,later,miss,pend,tot,score:tot?Math.round(100*(done+.5*later)/tot):null,by}}
 
 /* ───────── MD import: the format the copied prompt asks for ───────── */
-const SCOPES={all:{title:"الإضافة",kinds:["debt","income","expense","task"],what:"ديوني ومصادر دخلي ومصاريفي الثابتة ومهامي"},
+const SCOPES={all:{title:"الإضافة",kinds:["debt","income","expense","task","med","appt","wird"],what:"ديوني ومصادر دخلي ومصاريفي الثابتة ومهامي وأدويتي ومواعيدي الطبية وأوراد عباداتي"},
  finance:{title:"إضافة · مالي",kinds:["debt","income","expense"],what:"ديوني ومصادر دخلي ومصاريفي الثابتة"},
- schedule:{title:"إضافة · جدولي",kinds:["task"],what:"مهامي وعاداتي اليومية والأسبوعية والشهرية والسنوية"}};
+ schedule:{title:"إضافة · جدولي",kinds:["task"],what:"مهامي وعاداتي اليومية والأسبوعية والشهرية والسنوية"},
+ health:{title:"إضافة · صحي",kinds:["med","appt","task"],what:"أدويتي ومواعيدي الطبية وعاداتي الصحية"},
+ religion:{title:"إضافة · ديني",kinds:["wird","task"],what:"أوراد عباداتي وأذكاري ومهامي الدينية"}};
 function promptFor(scope,withSummary){const S=SCOPES[scope];const today=ymd(new Date());const k=S.kinds;
  const blocks={debt:`## دين
 - الاسم: (اسم مختصر يميزه)
@@ -504,6 +510,24 @@ function promptFor(scope,withSummary){const S=SCOPES[scope];const today=ymd(new 
 - التاريخ: (YYYY-MM-DD، للأسبوعي يحدد اليوم وللشهري رقم اليوم)
 - الوقت: (اختياري HH:MM بنظام 24 ساعة)
 - مرتبط: (اختياري: اسم دين أو دخل أو مصروف بنفس الاسم المكتوب عندي)`};
+ Object.assign(blocks,{med:`## دواء
+- الاسم:
+- الجرعة: (مثال: حبة | 500 مجم)
+- الأوقات: (HH:MM بنظام 24 ساعة وافصل بفاصلة، مثال 08:00, 20:00)
+- التكرار: يومي | أسبوعي
+- المدة: (بالأشهر، 0 = مستمر)
+- البداية: (YYYY-MM-DD)
+- المخزون: (عدد الحبات المتبقية، اختياري)`,appt:`## موعد
+- الاسم:
+- التاريخ: (YYYY-MM-DD)
+- الوقت: (اختياري HH:MM بنظام 24 ساعة)
+- المكان: (اختياري)
+- التكلفة: (اختياري)`,wird:`## ورد
+- الاسم:
+- بعد: فجر | شروق | ظهر | عصر | مغرب | عشاء | وقت محدد
+- الوقت: (HH:MM فقط لو اخترت وقت محدد)
+- التكرار: يومي | أسبوعي | شهري | سنوي | مرة
+- التاريخ: (بداية الورد YYYY-MM-DD)`});
  let p=`أنت مساعدي لتجهيز بيانات تطبيقي الشخصي «gh» لإدارة الحياة والمال. اليوم ${today}.
 
 المطلوب: اسألني بشكل بسيط وودّي عن ${S.what}. اسأل سؤالاً أو سؤالين في كل مرة، واستنتج التفاصيل من كلامي العادي (مثل: «علي تمويل من الراجحي 80 ألف على 5 سنين بدأ قبل سنة وقسطه 1633»). إذا نقصت معلومة مهمة اسألني عنها، وإذا ما أعرفها اتركها فارغة.
@@ -522,7 +546,7 @@ ${k.map(x=>blocks[x]).join("\n\n")}
  if(withSummary)p+=`\n\nهذي بياناتي الحالية للعلم، لا تكررها إلا لو طلبت تعديلها:\n\n${summaryMD(scope)}`;
  return p}
 const norm=s=>latin(s).replace(/[ـً-ْ]/g,"").replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/\s+/g," ").trim().toLowerCase();
-function kindOf(h){const n=norm(h);if(/دين|ديون|قرض|تمويل|debt/.test(n))return"debt";if(/دخل|راتب|income/.test(n))return"income";if(/مصروف|مصاريف|صرف|فاتور|expense/.test(n))return"expense";if(/مهم|task|عاد/.test(n))return"task";return null}
+function kindOf(h){const n=norm(h);if(/دواء|ادويه|علاج|دوا/.test(n))return"med";if(/موعد|مواعيد/.test(n))return"appt";if(/ورد|اوراد|ذكر|اذكار|عباد/.test(n))return"wird";if(/دين|ديون|قرض|تمويل|debt/.test(n))return"debt";if(/دخل|راتب|income/.test(n))return"income";if(/مصروف|مصاريف|صرف|فاتور|expense/.test(n))return"expense";if(/مهم|task|عاد/.test(n))return"task";return null}
 function catOf(kind,v){const n=norm(v||"");const m=CAT[kind];for(const [k,lab] of Object.entries(m))if(n&&(norm(lab)===n||n.includes(norm(lab))||norm(lab).includes(n)))return k;const ks=Object.keys(m);return kind==="task"?ks[0]:ks[ks.length-1]}
 function freqOf(v){const n=norm(v||"");if(/يوم/.test(n))return"daily";if(/اسبوع|weekly/.test(n))return"weekly";if(/سنو|سنه|yearly/.test(n))return"yearly";if(/مره|once|واحد/.test(n))return"once";return"monthly"}
 function dateOf(v){const s=latin(v||"").trim();let m=s.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);if(m)return`${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;m=s.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);if(m)return`${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;return null}
@@ -531,11 +555,16 @@ function timeOf(v){const s=latin(v||"");const m=s.match(/(\d{1,2})[:.](\d{2})/);
 function parseMD(text){const src=latin(text).replace(/```[a-z]*\n?/gi,"");const parts=src.split(/^\s*#{1,4}\s+/m).slice(1);const items=[];
  for(const p of parts){const lines=p.split("\n");const kind=kindOf(lines[0]);const f={};
   for(const ln of lines.slice(1)){const m=ln.match(/^\s*[-*•]?\s*([^:：]+)[:：]\s*(.*)$/);if(!m)continue;const key=norm(m[1]);const val=m[2].trim();if(!val||/^\(.*\)$/.test(val))continue;
-   const K=/^(الاسم|اسم|العنوان|المهمه)$/.test(key)?"title":/(نوع|تصنيف)/.test(key)?"cat":/قسط/.test(key)?"inst":/(اصل|المبلغ|مبلغ)/.test(key)?"amount":/(ربح|نسبه|فائد)/.test(key)?"rate":/طريق/.test(key)?"rtype":/مد/.test(key)?"months":/تكرار/.test(key)?"freq":/وقت العمل/.test(key)?"work":/(بدايه|استحقاق|تاريخ)/.test(key)?"start":/وقت/.test(key)?"time":/مرتبط/.test(key)?"link":/ملاحظ/.test(key)?"note":null;if(K)f[K]=val}
+   const K=/^(الاسم|اسم|العنوان|المهمه)$/.test(key)?"title":/جرع/.test(key)?"dose":/اوقات/.test(key)?"times":/(مكان|طبيب)/.test(key)?"place":/مخزون/.test(key)?"stock":/(تكلف|سعر)/.test(key)?"cost":/^بعد$/.test(key)?"anchor":/(نوع|تصنيف)/.test(key)?"cat":/قسط/.test(key)?"inst":/(اصل|المبلغ|مبلغ)/.test(key)?"amount":/(ربح|نسبه|فائد)/.test(key)?"rate":/طريق/.test(key)?"rtype":/مد/.test(key)?"months":/تكرار/.test(key)?"freq":/وقت العمل/.test(key)?"work":/(بدايه|استحقاق|تاريخ)/.test(key)?"start":/وقت/.test(key)?"time":/مرتبط/.test(key)?"link":/ملاحظ/.test(key)?"note":null;if(K)f[K]=val}
   if(!kind&&!Object.keys(f).length)continue;
   const it={id:uid(),kind,title:(f.title||"").trim(),errs:[]};
   if(!kind){it.errs.push("نوع البند غير معروف");items.push(it);continue}
   if(!it.title)it.errs.push("بدون اسم");
+  if(kind==="med"||kind==="appt"||kind==="wird"){
+   if(kind==="med"){it.dose=f.dose||"";it.times=String(f.times||"").split(/[,،;؛]|\s+و\s*/).map(timeOf).filter(Boolean);if(!it.times.length)it.errs.push("بدون أوقات");it.recur=/اسبوع|weekly/.test(norm(f.freq||""))?"weekly":"daily";it.start=dateOf(f.start)||ymd(new Date());it.months=f.months!=null?monthsOf(f.months):0;it.stock=f.stock!=null?Math.max(0,Math.round(toNum(f.stock))):""}
+   if(kind==="appt"){it.date=dateOf(f.start);if(!it.date)it.errs.push("بدون تاريخ");it.time=f.time?timeOf(f.time):"";it.place=f.place||"";it.cost=f.cost!=null?toNum(f.cost):""}
+   if(kind==="wird"){const a=norm(f.anchor||"");it.anchor=/فجر/.test(a)?"fajr":/شروق/.test(a)?"sunrise":/ظهر/.test(a)?"dhuhr":/عصر/.test(a)?"asr":/مغرب/.test(a)?"maghrib":/عشاء/.test(a)?"isha":"time";it.time=f.time?timeOf(f.time):(it.anchor==="time"?timeOf(f.anchor||""):"");it.offset=0;it.recur=({daily:"daily",weekly:"weekly",monthly:"monthly",yearly:"yearly",once:"once"})[freqOf(f.freq||"يومي")];it.date=dateOf(f.start)||ymd(new Date());if(it.anchor==="time"&&!it.time)it.errs.push("بدون وقت")}
+   if(f.note)it.note=f.note;items.push(it);continue}
   if(kind==="task"){it.cat=catOf("task",f.cat);it.recur=({daily:"daily",weekly:"weekly",monthly:"monthly",yearly:"yearly",once:"once"})[freqOf(f.freq||"مره")];it.date=dateOf(f.start)||ymd(new Date());it.time=f.time?timeOf(f.time):"";
    if(f.link)it.linkName=f.link}
   else{it.cat=catOf(kind,f.cat);it.amount=toNum(f.amount);it.start=dateOf(f.start)||ymd(new Date());it.months=f.months!=null?monthsOf(f.months):0;if(f.note)it.note=f.note;it.remind=true;
@@ -546,7 +575,7 @@ function parseMD(text){const src=latin(text).replace(/```[a-z]*\n?/gi,"");const 
    else{it.freq=freqOf(f.freq);if(kind==="income"&&f.work){const tm=timeOf(f.work);if(tm)it.work={on:true,time:tm,recur:it.freq==="weekly"?"weekly":"daily",weekday:parse(it.start).getDay()}}}
    if(!it.amount)it.errs.push("بدون مبلغ")}
   items.push(it)}
- const pool=[...finRecs(),...items.filter(x=>x.kind&&x.kind!=="task"&&!x.errs.length)];
+ const pool=[...finRecs(),...items.filter(x=>x.kind&&FINK.includes(x.kind)&&!x.errs.length)];
  for(const it of items)if(it.linkName){const n=norm(it.linkName);const L=pool.find(r=>norm(r.title)===n)||pool.find(r=>norm(r.title).includes(n)||n.includes(norm(r.title)));if(L){it.link=L.id;delete it.linkName}}
  return items}
 function summaryMD(scope="all"){const now=new Date();const f=finance(now);const k=SCOPES[scope].kinds;const L=[];
@@ -557,6 +586,10 @@ function summaryMD(scope="all"){const now=new Date();const f=finance(now);const 
     else L.push(`- ${it.title} (${CAT[kind][it.cat]}): ${Math.round(it.amount)} ${FREQ[it.freq||"monthly"][0]}${it.months?`، لمدة ${it.months} شهر`:""}`)}L.push("")}}
  if(k.includes("task")){const sc=dayScore(ymd(now),false);L.push("## المهام",`- اليوم: منجز ${sc.done}، مؤجل ${sc.later}، باقي ${sc.pend}`);
   for(const t of recs("task"))L.push(`- ${t.title} (${CAT.task[t.cat]||"عام"}، ${REC[t.recur]}${t.time?` ${t.time}`:""})${t.link&&byId(t.link)?` ← مرتبط بـ ${byId(t.link).title}`:""}`)}
+ if(k.includes("med")||k.includes("appt")){const H=HL(),vt=vitals();L.push("","## الصحة");if(vt)L.push(`- مؤشر كتلة الجسم ${vt.bmi.toFixed(1)} (${vt.cat})`);L.push(`- هدف الماء ${H.g.water} أكواب، النوم ${H.g.sleep} ساعة، الخطوات ${H.g.steps}`);
+  for(const m of recs("med"))L.push(`- دواء: ${m.title}${m.dose?` (${m.dose})`:""} ${(m.times||[]).join("، ")}${m.recur==="weekly"?" أسبوعياً":""}`);
+  for(const a of recs("appt"))L.push(`- موعد: ${a.title} ${a.date}${a.time?" "+a.time:""}`)}
+ if(k.includes("wird")){const R=REL();L.push("","## العبادات",`- ورد القرآن: ${R.q.on?`صفحة ${R.q.page} من 604، ${R.q.per} صفحات يومياً`:"غير مفعّل"}`);for(const w of recs("wird"))L.push(`- ${w.title} (${REC[w.recur||"daily"]})`)}
  return L.join("\n").trim()}
 
 /* ───────── LOGIN ───────── */
@@ -615,8 +648,8 @@ function renderHome(){const el=$("#s-home");const now=new Date();const f=finance
    <button class="tile" data-go="s-schedule"><span class="ic">${I.cal}</span><div><h3>جدولي</h3><small>${sc.done} من ${sc.list.length} منجزة اليوم<br>${esc(np.name)} ${esc(hourLabel(np.at))}</small></div></button>
    <button class="tile" data-go="s-finance"><span class="ic">${I.coin}</span><div><h3>مالي</h3><small>${finRecs().length?`صافي الشهر <span class="num ${f.net>=0?"pos":"neg"}">${money(f.net)}</span><br>المتبقي من الديون <span class="num">${money(f.remDebt)}</span>`:"ابدأ بإضافة دخلك وديونك"}</small></div></button>
    <div class="hub"><div class="medal">${KHATAM()}${MARK}</div><div class="clock tab" id="hclock">${esc(fClock.format(now))}</div></div>
-   <button class="tile" data-go="s-religion"><span class="ic">${I.moon}</span><div><h3>ديني</h3><small>صفحة نجهّزها لاحقاً</small></div></button>
-   <button class="tile locked" data-locked><span class="lk">${I.lock}</span><span class="ic">${I.heart}</span><div><h3>صحي</h3><small>مغلقة مؤقتاً</small></div></button>
+   <button class="tile" data-go="s-religion"><span class="ic">${I.moon}</span><div><h3>ديني</h3><small>${relSummary(now)}</small></div></button>
+   <button class="tile" data-go="s-health"><span class="ic">${I.heart}</span><div><h3>صحي</h3><small>${hlSummary(now)}</small></div></button>
    <button class="tile wide locked" data-locked><span class="lk">${I.lock}</span><span class="ic">${I.people}</span><div><h3>مجتمع</h3><small>مغلقة مؤقتاً</small></div></button>
   </div>
  </div>`}
@@ -658,7 +691,7 @@ function itemRow(it,c,now){let sub,val;const lc=linkedCount(it.id);
 $("#s-finance").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(a){if(a.dataset.act==="manual")finSheet();if(a.dataset.act==="demo")demo();return}const ed=e.target.closest("[data-edit]");if(ed)finSheet(byId(ed.dataset.edit))});
 
 function fr(label,inner){return`<div class="fr"><label>${label}</label>${inner}</div>`}
-const opts=(o,sel)=>Object.entries(o).map(([k,v])=>`<option value="${k}"${k===sel?" selected":""}>${esc(v)}</option>`).join("");
+const opts=(o,sel)=>Object.entries(o).map(([k,v])=>`<option value="${k}"${String(k)===String(sel)?" selected":""}>${esc(v)}</option>`).join("");
 function finSheet(item,kind0){const isNew=!item;let kind=item?.kind||kind0||"debt";const d={title:"",cat:"",amount:"",freq:"monthly",months:"",start:ymd(new Date()),rate:"",rateType:"flat",remind:true,note:"",work:{on:false,time:"09:00",recur:"daily"},...(item?JSON.parse(JSON.stringify(item)):{})};
  const sheet=openSheet(isNew?"بند جديد":"تعديل البند","",{action:"حفظ",onMount(sh,api){api.onAct=()=>{const it=collect();if(!it)return;if(isNew)V.records.push(it);else Object.assign(byId(item.id),it);save();api.close();refresh();toast(isNew?"تمت الإضافة":"تم الحفظ")}}});
  const body=$(".body",sheet.el);
@@ -742,9 +775,7 @@ function renderSchedule(){const el=$("#s-schedule");const now=new Date();if(!vie
  </div>`}
 $("#s-schedule").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(a&&a.dataset.act==="task"){taskSheet();return}
  const dn=e.target.closest("[data-day]");if(dn){const n=+dn.dataset.day;viewDate=n===0?ymd(new Date()):ymd(addDays(parse(viewDate),n));RENDER["s-schedule"]();return}
- const c=e.target.closest("[data-st]");if(c){const id=c.dataset.id,st=c.dataset.st;const L=V.log[viewDate]||(V.log[viewDate]={});
-  if(L[id]===st)delete L[id];else{L[id]=st;if(st==="later"){const t=tasksFor(viewDate).find(x=>x.id===id);if(t){V.carry=V.carry||{};V.carry[id]={title:t.title,time:t.time,cat:t.cat,link:t.link}}}}
-  save();RENDER["s-schedule"]();return}
+ const c=e.target.closest("[data-st]");if(c){setTaskState(viewDate,c.dataset.id,c.dataset.st);RENDER["s-schedule"]();return}
  const tk=e.target.closest("[data-task]");if(tk)taskSheet(byId(tk.dataset.task))});
 function taskSheet(task){const isNew=!task;const d={title:"",cat:"general",recur:"once",date:viewDate||ymd(new Date()),time:"",link:"",...(task||{})};
  const links={"":"بدون ربط",...Object.fromEntries(finRecs().map(r=>[r.id,`${KIND[r.kind]}: ${r.title}`]))};
@@ -775,7 +806,7 @@ function renderAdd(){const el=$("#s-add");const S=SCOPES[addScope];parsed=[];
   <div id="pvbox"></div>
   ${ORN}
   <div class="sec">${H4("أو أضف بنداً واحداً")}<div class="card">
-   ${S.kinds.filter(k=>k!=="task").map(k=>`<button class="row" data-a="one" data-k="${k}"><span class="dot" style="background:var(--${({debt:"bad",income:"ok",expense:"wait"})[k]})"></span><div class="g t">${KIND[k]}</div>${I.chev}</button>`).join("")}
+   ${S.kinds.filter(k=>k!=="task").map(k=>`<button class="row" data-a="one" data-k="${k}"><span class="dot" style="background:var(--${({debt:"bad",income:"ok",expense:"wait",med:"hl",appt:"hl",wird:"gold"})[k]||"wine"})"></span><div class="g t">${KIND[k]}</div>${I.chev}</button>`).join("")}
    ${S.kinds.includes("task")?`<button class="row" data-a="one" data-k="task"><span class="dot" style="background:var(--wine)"></span><div class="g t">مهمة</div>${I.chev}</button>`:""}
   </div></div>
   <div class="sec">${H4("ملفي الشخصي MD")}<div class="card pin" style="display:flex;flex-direction:column;gap:10px"><span class="help" style="padding:0">ملخص Markdown لبياناتك${addScope==="all"?"":" في هذا القسم"}، تحفظه في ملاحظاتك أو تعطيه لأي محادثة كسياق شخصي.</span><button class="btn ghost" data-a="summary">${I.doc}نسخ الملخص</button><textarea id="sfb" class="mono" readonly hidden style="min-height:140px;border:1px solid var(--line-2);border-radius:12px"></textarea></div></div>
@@ -785,6 +816,7 @@ function drawPreview(){const box=$("#pvbox");if(!parsed.length){box.innerHTML=`<
  box.innerHTML=`<div class="sec">${H4("المعاينة",`${good.length} من ${parsed.length} جاهز`)}<div class="card">${parsed.map(p=>{let sub="";
   if(p.kind==="debt"&&!p.errs.length){const L=loan(p);sub=`أصل ${money(p.amount)} · قسط ${money(L.inst)} · ${p.months} شهر${L.apr?` · فعلي ${L.apr.toFixed(1)}%`:""}`}
   else if(p.kind==="task")sub=`${REC[p.recur]}${p.time?` · ${p.time}`:""}${p.link?` · مرتبط بـ ${esc((byId(p.link)||parsed.find(x=>x.id===p.link))?.title||"")}`:p.linkName?` · الربط «${esc(p.linkName)}» غير موجود`:""}`;
+  else if(["med","appt","wird"].includes(p.kind)&&!p.errs.length)sub=previewSub(p);
   else if(p.kind&&!p.errs.length)sub=`${money(p.amount)} · ${FREQ[p.freq][0]}${p.months?` · ${p.months} شهر`:""}${p.work?` · وقت عمل ${p.work.time}`:""}`;
   return`<div class="pv"><span class="tag ${p.kind||""}">${KIND[p.kind]||"؟"}</span><div class="g" style="flex:1;min-width:0"><div class="t" style="font-size:15px">${esc(p.title||"بدون اسم")}</div><div class="s" style="font-size:12.5px;color:var(--ink-2)">${sub}</div>${p.errs.length?`<div class="err">${esc(p.errs.join("، "))}</div>`:""}</div></div>`}).join("")}</div>
   <button class="btn" data-a="import" ${good.length?"":"disabled"} style="width:100%">إضافة ${good.length} بند</button></div>`}
@@ -795,12 +827,255 @@ $("#s-add").addEventListener("click",e=>{const b=e.target.closest("[data-a]");if
  if(a==="clear"){$("#md").value="";parsed=[];$("#pvbox").innerHTML=""}
  if(a==="import"){const good=parsed.filter(p=>!p.errs.length);for(const p of good){const r={...p};delete r.errs;delete r.linkName;V.records.push(r)}save();toast(`أضفت ${good.length} بند`);$("#md").value="";parsed=[];$("#pvbox").innerHTML="";
   setTimeout(()=>{pop()},500)}
- if(a==="one"){const k=b.dataset.k;if(k==="task")taskSheet();else finSheet(null,k)}
+ if(a==="one"){const k=b.dataset.k;if(k==="task")taskSheet();else if(k==="med")medSheet();else if(k==="appt")apptSheet();else if(k==="wird")wirdSheet();else finSheet(null,k)}
  if(a==="summary"){const s=summaryMD(addScope);const fb=$("#sfb");fb.value=s;copyText(s,fb)}});
 $("#s-add").addEventListener("change",e=>{if(e.target.id!=="mdfile")return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("#md").value=String(r.result);parsed=parseMD(String(r.result));drawPreview()};r.readAsText(f);e.target.value=""});
 
+/* ───────── RELIGION & HEALTH: records + settings feed the same task engine ───────── */
+const fHP=new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura",{day:"numeric",month:"numeric",year:"numeric"});
+const hij=d=>{try{const p=fHP.formatToParts(d);const g=t=>+(p.find(x=>x.type===t)||{}).value;return{y:g("year"),m:g("month"),d:g("day")}}catch(e){return{y:0,m:0,d:0}}};
+const REL=()=>{const r=V.rel||(V.rel={});const D={adhkarM:true,adhkarE:true,adhkarS:false,duha:false,rawatib:false,witr:false,qiyam:false,jumuah:true,ramadan:true,fastMT:false,fastWhite:false,fastSpecial:true,tsbT:33};
+ for(const k in D)if(r[k]===undefined)r[k]=D[k];r.q=r.q||{on:false,page:1,per:5,at:"fajr",khatm:0};r.z=r.z||{on:false,date:""};return r};
+const HL=()=>{const h=V.hl||(V.hl={});h.p=h.p||{height:"",weight:"",birth:"",sex:"m",blood:"",allergy:"",cond:"",ecName:"",ecPhone:""};
+ h.g=h.g||{water:8,sleep:7.5,steps:8000,wOn:true,bed:true,ex:[],exAt:"asr"};return h};
+const logOf=key=>({get:ds=>(V[key]&&V[key][ds])||{},set(ds,k,v){V[key]=V[key]||{};const o=V[key][ds]||(V[key][ds]={});if(v===""||v==null||(typeof v==="number"&&isNaN(v)))delete o[k];else o[k]=v;save()}});
+const HLOG=logOf("hlog"),RLOG=logOf("rlog");
+const ANCH={fajr:"الفجر",sunrise:"الشروق",dhuhr:"الظهر",asr:"العصر",maghrib:"المغرب",isha:"العشاء"};
+
+function fastName(d){const R=REL(),h=hij(d),dow=d.getDay();const eid=(h.m===10&&h.d===1)||(h.m===12&&h.d>=10&&h.d<=13);
+ if(h.m===9)return R.ramadan?"رمضان":null;if(eid)return null;
+ if(R.fastSpecial){if(h.m===12&&h.d===9)return"يوم عرفة";if(h.m===1&&h.d===10)return"يوم عاشوراء";if(h.m===1&&h.d===9)return"تاسوعاء"}
+ if(R.fastWhite&&h.d>=13&&h.d<=15)return"الأيام البيض";
+ if(R.fastMT&&dow===1)return"صيام الإثنين";if(R.fastMT&&dow===4)return"صيام الخميس";return null}
+function relTasks(ds,d,t,fast){const R=REL(),L=[],h=hij(d),dow=d.getDay();const T=(id,title,time,x)=>L.push({id,title,time,cat:"religion",...x});
+ if(R.adhkarM)T("r-am","أذكار الصباح",t.fajr+.5);
+ if(R.adhkarE)T("r-ae","أذكار المساء",t.asr+.5);
+ if(R.adhkarS)T("r-as","أذكار النوم",t.isha+1);
+ if(R.duha)T("r-duha","صلاة الضحى",t.sunrise+.4);
+ if(R.rawatib)T("r-raw","السنن الرواتب",t.dhuhr+.25);
+ if(R.witr)T("r-witr","صلاة الوتر",t.isha+.5);
+ if(R.qiyam)T("r-qiyam","قيام الليل",t.fajr-1);
+ if(R.jumuah&&dow===5){T("r-kahf","قراءة سورة الكهف",t.dhuhr-3);T("r-salat","الإكثار من الصلاة على النبي ﷺ",t.asr+.5)}
+ if(R.ramadan&&h.m===9)T("r-tar","صلاة التراويح",t.isha+.6);
+ if(fast){T("r-fast","نية الصيام والسحور: "+fast,t.fajr-.5);T("r-iftar","الإفطار",t.maghrib)}
+ const q=R.q;if(q.on){const a=Math.min(604,q.page),b=Math.min(604,q.page+q.per-1);const today=ds===ymd(new Date());
+  T("r-quran",today?`ورد القرآن: صفحة ${a}${b>a?" إلى "+b:""}`:"ورد القرآن",(t[q.at]??t.fajr)+(q.at==="fajr"?.7:.3))}
+ if(R.z.on&&R.z.date&&ds>=R.z.date){const s=hij(parse(R.z.date));if(h.m===s.m&&h.d===s.d)T("r-zakat","موعد إخراج الزكاة",9)}
+ for(const w of recs("wird")){if(!occurs({recur:w.recur||"daily",date:w.date||V.created||ds},ds))continue;
+  const tm=w.anchor&&w.anchor!=="time"?t[w.anchor]+(w.offset||0)/60:hhmmToH(w.time);L.push({id:"x-"+w.id,title:w.title,time:tm,cat:"religion",ref:w.id})}
+ return L}
+function healthTasks(ds,d,t,fast){const H=HL(),g=H.g,L=[],c=city(),today=ds===ymd(new Date());
+ for(const m of recs("med")){const s=parse(m.start||ds);const end=m.months?addMonths(s,m.months):null;if(d<s||(end&&d>=end))continue;if(m.recur==="weekly"&&d.getDay()!==s.getDay())continue;
+  const times=m.times&&m.times.length?m.times:["08:00"];times.forEach(tm=>L.push({id:`m-${m.id}-${tm}`,title:`${m.title}${m.dose?" · "+m.dose:""}`,time:hhmmToH(tm),cat:"health",ref:m.id}));
+  if(today&&m.stock!==""&&m.stock!=null){const perDay=times.length*(m.recur==="weekly"?1/7:1);if(+m.stock/perDay<=5)L.push({id:"mr-"+m.id,title:`جدّد ${m.title} (متبقي ${m.stock})`,time:null,cat:"health"})}}
+ for(const a of recs("appt")){if(a.date===ds)L.push({id:"a-"+a.id,title:`موعد: ${a.title}${a.place?" · "+a.place:""}`,time:hhmmToH(a.time),cat:"health",ref:a.id});
+  else if(a.date===ymd(addDays(d,1)))L.push({id:"a0-"+a.id,title:`غداً موعد: ${a.title}`,time:20,cat:"health",ref:a.id})}
+ if(g.wOn)L.push({id:"h-water",title:fast?`اشرب ${g.water} أكواب بين الإفطار والسحور`:`شرب الماء: ${g.water} أكواب`,time:fast?t.maghrib+.5:17,cat:"health"});
+ if(g.bed){const t2=prayerTimes(addDays(d,1),c.lat,c.lng,c.tz);let bed=t2.fajr+24-g.sleep-.5;if(bed>=24)bed-=24;L.push({id:"h-bed",title:`وقت النوم (${g.sleep} ساعة قبل الفجر)`,time:bed,cat:"health"})}
+ if((g.ex||[]).includes(d.getDay()))L.push({id:"h-ex",title:"تمرين رياضي",time:fast?t.maghrib+1.5:(t[g.exAt]??t.asr)+.5,cat:"health"});
+ return L}
+
+/* one place that changes a task's state, with the links between sections */
+function setTaskState(ds,id,st){const L=V.log[ds]||(V.log[ds]={});const prev=L[id];
+ if(prev===st){delete L[id];st=undefined}else{L[id]=st;if(st==="later"){const t=tasksFor(ds).find(x=>x.id===id);if(t){V.carry=V.carry||{};V.carry[id]={title:t.title,time:t.time,cat:t.cat,link:t.link}}}}
+ const was=prev==="done",now=st==="done";
+ if(was!==now){const dl=now?1:-1;
+  if(id==="r-quran"&&ds===ymd(new Date())){const q=REL().q;let abs=(q.khatm||0)*604+(q.page-1)+dl*q.per;if(abs<0)abs=0;q.khatm=Math.floor(abs/604);q.page=abs%604+1}
+  if(id[0]==="m"&&id[1]==="-"){const m=byId(id.split("-")[1]);if(m&&m.stock!==""&&m.stock!=null)m.stock=Math.max(0,+m.stock-dl)}
+  if(id==="h-water"&&now)HLOG.set(ds,"water",Math.max(HLOG.get(ds).water||0,HL().g.water))}
+ save()}
+function syncWater(ds){const cups=HLOG.get(ds).water||0,goal=HL().g.water;const L=V.log[ds]||(V.log[ds]={});if(cups>=goal)L["h-water"]="done";else if(L["h-water"]==="done")delete L["h-water"]}
+
+/* ───────── calendar export: reminders that reach the iPhone and Apple Watch with no server ───────── */
+const ICS_G=[["prayer","الصلوات",["prayer"],true],["religion","الأذكار والعبادات والصيام",["religion"],true],["health","الصحة: أدوية ومواعيد وماء",["health"],false],["money","المالية: أقساط ومصاريف",["money"],true],["tasks","مهامي الأخرى",["general","personal","work"],true]];
+function buildICS(days,cats,alarm){const E=s=>String(s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g," ");
+ const F=dt=>`${dt.getFullYear()}${pad2(dt.getMonth()+1)}${pad2(dt.getDate())}T${pad2(dt.getHours())}${pad2(dt.getMinutes())}00`;
+ const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");const out=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//gh//ar//EN","CALSCALE:GREGORIAN","X-WR-CALNAME:gh"];let n=0;
+ const t0=startOfDay(new Date());
+ for(let i=0;i<days;i++){const d=addDays(t0,i),ds=ymd(d);for(const t of tasksFor(ds)){if(!cats.includes(t.cat))continue;
+  const h=t.time!=null&&isFinite(t.time)?t.time:9;const s=new Date(d.getFullYear(),d.getMonth(),d.getDate(),0,Math.round(h*60));const e=new Date(s.getTime()+15*6e4);n++;
+  out.push("BEGIN:VEVENT",`UID:${t.id}-${ds}@gh.local`,`DTSTAMP:${stamp}`,`DTSTART:${F(s)}`,`DTEND:${F(e)}`,`SUMMARY:${E(t.title)}`,"BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${E(t.title)}`,`TRIGGER:-PT${alarm}M`,"END:VALARM","END:VEVENT")}}
+ out.push("END:VCALENDAR");return{text:out.join("\r\n"),n}}
+async function deliverICS(text){const f=new File([text],"gh-reminders.ics",{type:"text/calendar"});
+ try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"تذكيرات gh"});return}}catch(e){if(e&&e.name==="AbortError")return}
+ const url=URL.createObjectURL(new Blob([text],{type:"text/calendar"}));const a=document.createElement("a");a.href=url;a.download="gh-reminders.ics";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
+function calSheet(){const st={};ICS_G.forEach(g=>st[g[0]]=g[3]);
+ const sh=openSheet("تذكيرات التقويم والساعة",`<div class="help" style="padding:0">يُنشأ ملف تقويم من جدولك، تفتحه فتنضاف المواعيد إلى تقويم الآيفون مع تنبيهاتها، وتصل تنبيهاتها تلقائياً إلى ساعة آبل. الملف يُصنع على جهازك ولا يخرج منه إلا بإرسالك له.</div>
+  <div class="card">${ICS_G.map(g=>fr(g[1],`<span style="flex:1"></span><button class="switch ${g[3]?"on":""}" data-g="${g[0]}" role="switch" aria-checked="${g[3]}" aria-label="${esc(g[1])}"></button>`)).join("")}</div>
+  <div class="card">${fr("عدد الأيام القادمة",`<select id="c-days">${opts({7:"7 أيام",14:"14 يوم",30:"30 يوم",60:"60 يوم"},30)}</select>`)}${fr("التنبيه قبل الموعد",`<select id="c-al">${opts({0:"في الوقت نفسه",5:"5 دقائق",10:"10 دقائق",15:"15 دقيقة",30:"30 دقيقة"},5)}</select>`)}</div>
+  <div class="banner" id="c-warn" hidden>تنبيه خصوصية: أسماء الأدوية والمواعيد الطبية بتصير في تقويم الآيفون وخارج التشفير، وقد تظهر على شاشة القفل أو تتزامن مع iCloud.</div>
+  <button class="btn" id="c-go">${I.doc}إنشاء الملف وإرساله للتقويم</button>
+  <div class="help" style="padding:0">بعد ما يظهر لك الملف: اختر «حفظ في الملفات»، ثم افتحه من تطبيق الملفات واضغط «إضافة الكل» واختر تقويماً جديداً باسم gh عشان تقدر تحذفه كله بسهولة. إعادة التصدير لا تكرر المواعيد. غيّر مواعيد صلاة أو مهمة وصدّر مرة ثانية بعد أسبوع أو أسبوعين.</div>`,
+  {onMount(el){const warn=()=>{$("#c-warn",el).hidden=!st.health};warn();
+   el.addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(b){st[b.dataset.g]=!st[b.dataset.g];b.classList.toggle("on",st[b.dataset.g]);b.setAttribute("aria-checked",st[b.dataset.g]);warn();return}
+    if(e.target.closest("#c-go")){const cats=ICS_G.filter(g=>st[g[0]]).flatMap(g=>g[2]);if(!cats.length){toast("اختر قسماً واحداً على الأقل");return}
+     const r=buildICS(+$("#c-days",el).value,cats,+$("#c-al",el).value);deliverICS(r.text);toast(`${r.n} موعد جاهز`)}})}})}
+
+/* ───────── shared UI ───────── */
+const triHTML=(id,st,ds)=>`<div class="tri" role="group" aria-label="حالة المهمة">${[["done","نفذ",I.ok],["missed","لم ينفذ",I.x],["later","يؤجل",I.later]].map(([k,l,ic])=>`<button class="c3 ${k==="missed"?"miss":k} ${st===k?"on":""}" data-st="${k}" data-id="${id}" data-ds="${ds}" aria-label="${l}">${ic}</button>`).join("")}</div>`;
+function tasksBlock(ds,cats,title){const lg=V.log[ds]||{};const list=tasksFor(ds).filter(x=>cats.includes(x.cat));const dn=list.filter(x=>lg[x.id]==="done").length;
+ return`<div class="sec">${H4(title,`${dn} من ${list.length}`)}<div class="card">${list.length?list.map(t=>{const st=lg[t.id]||"";return`<div class="task st-${st}"><span class="time tab">${t.time!=null?esc(hourLabel(t.time)):"—"}</span><div class="g"><div class="t">${esc(t.title)}</div></div>${triHTML(t.id,st,ds)}</div>`}).join(""):`<div class="empty">ما فيه مهام اليوم</div>`}</div></div>`}
+function bindScreen(id,fn){$("#"+id).addEventListener("click",e=>{const c=e.target.closest("[data-st]");if(c){setTaskState(c.dataset.ds,c.dataset.id,c.dataset.st);RENDER[id]();return}fn(e)})}
+const swHTML=(on,attrs,label)=>`<button class="switch ${on?"on":""}" ${attrs} role="switch" aria-checked="${!!on}" aria-label="${esc(label)}"></button>`;
+function bars(vals,goal,fmt=v=>v){const max=Math.max(goal||0,...vals.map(x=>x.v||0),1);
+ return`<div style="display:flex;gap:6px;align-items:flex-end;height:78px;direction:rtl">${vals.map(x=>{const hp=x.v?Math.max(6,Math.round(100*x.v/max)):0;return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end"><span class="num" style="font-size:10px;color:var(--ink-3)">${x.v?fmt(x.v):""}</span><i style="display:block;width:100%;height:${hp}%;border-radius:4px;background:${x.today?"var(--hl)":"rgba(63,127,140,.35)"}"></i><span style="font-size:10px;color:var(--ink-3)">${x.lab}</span></div>`}).join("")}</div>`}
+const SDAY=["أحد","إثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"];
+const last7=key=>{const o=[];for(let i=6;i>=0;i--){const d=addDays(new Date(),-i);o.push({v:HLOG.get(ymd(d))[key],lab:i===0?"اليوم":SDAY[d.getDay()],today:i===0})}return o};
+const inRow=(id,label,val,ph="",mode="decimal",type="text")=>fr(label,`<input id="${id}" type="${type}" ${type==="text"?`inputmode="${mode}"`:""} value="${esc(val??"")}" placeholder="${esc(ph)}">`);
+const gv=(el,id)=>$("#"+id,el).value;
+function confirmDel(sh,id,fn){sh.el.addEventListener("click",e=>{const del=e.target.closest("#"+id);if(!del)return;if(del.dataset.sure){fn();sh.close();refresh();toast("تم الحذف")}else{del.dataset.sure="1";del.textContent="اضغط مرة ثانية لتأكيد الحذف"}})}
+
 /* ───────── RELIGION ───────── */
-function renderReligion(){$("#s-religion").innerHTML=`${navBar("ديني")}<div class="wrap"><div class="card empty" style="margin-top:14px"><div class="medal" style="width:110px;height:110px">${KHATAM()}<span style="width:34px;height:34px;color:var(--wine);position:relative">${I.moon}</span></div><b>صفحة فارغة</b><span>نجهّز محتواها مع بعض لاحقاً. أوقات الصلاة موجودة الآن في جدولي.</span></div></div>`}
+function prayerStats(){const now=new Date();let done=0,tot=0,streak=0,todayDone=0,counting=true;
+ for(let i=0;i<60;i++){const ds=ymd(addDays(now,-i));if(V.created&&ds<V.created)break;const lg=V.log[ds]||{};const n=PRAYERS.filter(([k])=>lg["p-"+k]==="done").length;
+  if(i===0)todayDone=n;if(i<7){done+=n;tot+=5}if(counting){if(n===5)streak++;else if(i>0)counting=false}}
+ return{done,tot,streak,todayPct:Math.round(100*todayDone/5)}}
+const OCC=[[1,1,"رأس السنة الهجرية"],[1,10,"يوم عاشوراء"],[9,1,"بداية رمضان"],[9,27,"ليلة 27 من رمضان"],[10,1,"عيد الفطر"],[12,9,"يوم عرفة"],[12,10,"عيد الأضحى"]];
+function occasions(){const out=[],t0=startOfDay(new Date());for(let i=0;i<=400&&out.length<5;i++){const d=addDays(t0,i),h=hij(d);const o=OCC.find(x=>x[0]===h.m&&x[1]===h.d);if(o)out.push({d,name:o[2],days:i})}return out}
+const qibla=(lat,lng)=>{const p1=lat*D2R,p2=21.4225*D2R,dl=(39.8262-lng)*D2R;const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return(Math.atan2(y,x)*R2D+360)%360};
+const REL_TOG=[["عبادات يومية",[["adhkarM","أذكار الصباح بعد الفجر"],["adhkarE","أذكار المساء بعد العصر"],["adhkarS","أذكار النوم بعد العشاء"],["duha","صلاة الضحى"],["rawatib","السنن الرواتب"],["witr","الوتر"],["qiyam","قيام الليل قبل الفجر"],["jumuah","الجمعة: سورة الكهف والصلاة على النبي"]]],
+ ["الصيام",[["ramadan","صيام رمضان والتراويح تلقائياً"],["fastMT","الإثنين والخميس"],["fastWhite","الأيام البيض (13 و14 و15)"],["fastSpecial","عرفة وعاشوراء وتاسوعاء"]]]];
+function renderReligion(){const el=$("#s-religion");const now=new Date(),ds=ymd(now);const R=REL(),q=R.q,c=city();const ps=prayerStats();const fn=fastName(now);const occ=occasions();const rl=RLOG.get(ds);const qb=qibla(c.lat,c.lng);
+ const juz=Math.min(30,Math.max(1,Math.ceil((q.page-1)/20))),left=604-q.page+1,dleft=Math.ceil(left/Math.max(1,q.per));
+ el.innerHTML=`${navBar("ديني","religion")}<div class="wrap">
+ <div class="card pin"><div class="today"><div><div style="font-family:var(--kufi);font-size:25px;font-weight:700;color:var(--wine);line-height:1.2">${esc(fHijri.format(now))}</div><div class="dates" style="text-align:start;margin-top:6px">${esc(fGreg.format(now))}</div></div>${ring(ps.todayPct)}</div>
+  ${fn?`<div class="next"><span style="color:var(--gold);width:11px;display:inline-flex">${STAR}</span>اليوم: <b>${esc(fn)}</b></div>`:""}
+  <div class="next">صلوات هذا الأسبوع <b class="num">${ps.done}/${ps.tot}</b> · أيام متتالية بكل الصلوات <b class="num">${ps.streak}</b></div></div>
+ ${tasksBlock(ds,["prayer","religion"],"عبادات اليوم")}
+ <div class="sec">${H4("ورد القرآن",q.on?`ختمات ${q.khatm||0}`:"")}<div class="card pin" style="display:flex;flex-direction:column;gap:12px">
+  ${q.on?`<div class="meter"><i style="width:${Math.round(100*(q.page-1)/604)}%;background:var(--gold)"></i></div>
+   <div style="font-size:14px;line-height:1.8">الصفحة <b class="num">${q.page}</b> من 604 · الجزء <b class="num">${juz}</b><br><span class="mut">المتبقي ${left} صفحة، بمعدل ${q.per} يومياً تخلص خلال ${dleft} يوم (${esc(fGregShort.format(addDays(now,dleft)))})</span></div>`
+   :`<div class="help" style="padding:0">فعّل الورد وحدد صفحاتك اليومية. يظهر في جدولك بوقت مربوط بالصلاة، وإذا علّمته «نفذ» تتقدم صفحتك تلقائياً.</div>`}
+  <button class="btn ghost" data-r="quran">${q.on?"إعداد الورد":"تفعيل الورد"}</button></div></div>
+ ${REL_TOG.map(([t,rows])=>`<div class="sec">${H4(t)}<div class="card">${rows.map(([k,l])=>fr(l,`<span style="flex:1"></span>${swHTML(R[k],`data-r="tog" data-k="${k}"`,l)}`)).join("")}</div></div>`).join("")}
+ <div class="help">أوقات الأذكار والعبادات تُحسب من مواقيت الصلاة في ${esc(c.name)}، وتظهر في جدولك وتدخل في نتيجة اليوم. صيام عرفة لغير الحاج.</div>
+ <div class="sec">${H4("المناسبات القادمة")}<div class="card">${occ.map(o=>`<div class="row"><span class="dot" style="background:var(--gold)"></span><div class="g"><div class="t">${esc(o.name)}</div><div class="s">${esc(fGreg.format(o.d))}</div></div><span class="v num">${o.days===0?"اليوم":o.days===1?"غداً":"بعد "+o.days+" يوم"}</span></div>`).join("")}</div></div>
+ <div class="sec">${H4("المسبحة")}<div class="card pin" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+  <button id="tsb" data-r="tsb" style="width:132px;height:132px;border-radius:50%;border:1.5px solid var(--gold);background:var(--card);box-shadow:0 8px 20px -12px rgba(80,55,20,.4);font-family:var(--kufi);font-size:38px;font-weight:700;color:var(--wine)" class="num">${rl.tsb||0}</button>
+  <div style="display:flex;gap:8px;align-items:center"><select id="tsbT" data-r="tsbT" style="height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 10px">${opts({33:"33",99:"99",100:"100",1000:"بلا حد"},R.tsbT)}</select><button class="btn ghost sm" data-r="tsb0">تصفير</button></div></div></div>
+ <div class="sec">${H4("القبلة")}<div class="card pin" style="display:flex;align-items:center;gap:16px"><svg viewBox="0 0 100 100" style="width:96px;height:96px;flex:none" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="var(--gold)" stroke-width="1"/><g id="qarrow" style="transform-origin:50px 50px;transform:rotate(${qb}deg)"><path d="M50 12l9 24H41z" fill="var(--wine)"/><path d="M50 36v34" stroke="var(--wine)" stroke-width="3" stroke-linecap="round"/></g></svg>
+  <div style="flex:1;font-size:14px;line-height:1.8">اتجاه القبلة من ${esc(c.name)}: <b class="num">${Math.round(qb)}°</b> من الشمال باتجاه عقارب الساعة.<br><button class="btn ghost sm" data-r="compass" style="margin-top:6px">تشغيل البوصلة</button></div></div></div>
+ <div class="sec">${H4("الزكاة والصدقة")}<div class="card">
+  <button class="row" data-r="zakat"><div class="g"><div class="t">حاسبة الزكاة وتذكير الحول</div><div class="s">${R.z.on&&R.z.date?`التذكير مفعّل بتاريخ ${esc(R.z.date)} من كل سنة هجرية`:"احسب ٢٫٥٪ وفعّل تنبيه موعدها"}</div></div>${I.chev}</button>
+  <button class="row" data-r="sadaqa"><div class="g"><div class="t">إضافة صدقة شهرية</div><div class="s">تنضاف إلى مصاريفك في مالي مع تذكير</div></div>${I.chev}</button></div></div>
+ <div class="sec">${H4("أوراد وعبادات مخصصة",`${recs("wird").length}`)}<div class="card">${recs("wird").map(w=>`<button class="row" data-r="wird" data-id="${w.id}"><span class="dot" style="background:var(--gold)"></span><div class="g"><div class="t">${esc(w.title)}</div><div class="s">${REC[w.recur||"daily"]} · ${w.anchor&&w.anchor!=="time"?"بعد "+ANCH[w.anchor]:esc(w.time||"")}</div></div>${I.chev}</button>`).join("")}<button class="row" data-r="wird"><span class="dot" style="background:var(--wine)"></span><div class="g t">ورد جديد</div></button></div></div>
+ <button class="btn ghost" data-r="cal">${I.cal}تذكيرات التقويم والساعة</button>
+ </div>`}
+let compassOn=false;function startCompass(){const go=()=>{if(compassOn)return;compassOn=true;const c=city();const qb=qibla(c.lat,c.lng);
+  addEventListener("deviceorientationabsolute",on,true);addEventListener("deviceorientation",on,true);
+  function on(e){const h=e.webkitCompassHeading!=null?e.webkitCompassHeading:(e.alpha!=null?360-e.alpha:null);const a=document.getElementById("qarrow");if(a&&h!=null)a.style.transform=`rotate(${qb-h}deg)`}};
+ try{if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function")DeviceOrientationEvent.requestPermission().then(r=>{if(r==="granted"){go();toast("البوصلة شغّالة، أمسك الجوال أفقياً")}else toast("ما انسمح بالوصول للبوصلة")}).catch(()=>toast("البوصلة غير متاحة"));else{go();toast("البوصلة شغّالة")}}catch(e){toast("البوصلة غير متاحة")}}
+bindScreen("s-religion",e=>{const b=e.target.closest("[data-r]");if(!b)return;const a=b.dataset.r,R=REL(),ds=ymd(new Date());
+ if(a==="tog"){R[b.dataset.k]=!R[b.dataset.k];save();RENDER["s-religion"]()}
+ if(a==="tsb"){const n=(RLOG.get(ds).tsb||0)+1;RLOG.set(ds,"tsb",n);b.textContent=n;if(R.tsbT<1000&&n%R.tsbT===0)toast("أتممت "+n)}
+ if(a==="tsb0"){RLOG.set(ds,"tsb",0);$("#tsb").textContent="0"}
+ if(a==="compass")startCompass();
+ if(a==="quran")quranSheet();if(a==="zakat")zakatSheet();if(a==="sadaqa")sadaqaSheet();if(a==="wird")wirdSheet(b.dataset.id?byId(b.dataset.id):null);if(a==="cal")calSheet()});
+$("#s-religion").addEventListener("change",e=>{if(e.target.id==="tsbT"){REL().tsbT=+e.target.value;save();RENDER["s-religion"]()}});
+function quranSheet(){const R=REL(),q=R.q;const sh=openSheet("ورد القرآن",`<div class="card">${fr("تفعيل الورد",`<span style="flex:1"></span>${swHTML(q.on,'id="q-on"',"تفعيل")}`)}
+  ${inRow("q-page","الصفحة الحالية",q.page,"1 إلى 604","numeric")}${inRow("q-per","صفحات كل يوم",q.per,"مثال 5","numeric")}
+  ${fr("وقت الورد",`<select id="q-at">${opts({fajr:"بعد الفجر",dhuhr:"بعد الظهر",asr:"بعد العصر",maghrib:"بعد المغرب",isha:"بعد العشاء"},q.at)}</select>`)}</div>
+  <div class="sec">${H4("ختمة في")}<div class="chips">${[30,60,90,180].map(d=>`<button class="pill" data-kd="${d}">${d} يوم</button>`).join("")}</div></div>
+  <div class="help">لما تعلّم ورد اليوم «نفذ» في جدولك تتقدم الصفحة تلقائياً، وإذا تراجعت عن التعليم ترجع.</div>`,
+  {action:"حفظ",onMount(el,api){let on=q.on;el.addEventListener("click",e=>{const s=e.target.closest("#q-on");if(s){on=!on;s.classList.toggle("on",on);s.setAttribute("aria-checked",on);return}
+   const k=e.target.closest("[data-kd]");if(k){const pg=Math.min(604,Math.max(1,Math.round(toNum(gv(el,"q-page"))||1)));$("#q-per",el).value=Math.ceil((605-pg)/+k.dataset.kd)}});
+   api.onAct=()=>{q.on=on;q.page=Math.min(604,Math.max(1,Math.round(toNum(gv(el,"q-page"))||1)));q.per=Math.max(1,Math.min(604,Math.round(toNum(gv(el,"q-per"))||5)));q.at=gv(el,"q-at");save();api.close();refresh();toast("تم الحفظ")}}})}
+function zakatSheet(){const R=REL(),z=R.z;openSheet("حاسبة الزكاة",`<div class="card">${inRow("z-amt","المال الذي حال عليه الحول","","ر.س")}${inRow("z-nis","النصاب (قيمة 85 جرام ذهب)","","ر.س")}${inRow("z-date","تاريخ إخراجها",z.date||ymd(new Date()),"","","date")}</div>
+  <div class="preview" id="z-out"><div><span>الزكاة المستحقة</span><b>—</b></div></div>
+  <div class="card">${fr("تذكير كل سنة هجرية",`<span style="flex:1"></span>${swHTML(z.on,'id="z-on"',"تذكير")}`)}</div>
+  <button class="btn ghost" id="z-exp">أضفها كمصروف في مالي</button>
+  <div class="help">الحساب: 2.5٪ من المال المدخر إذا بلغ النصاب وحال عليه الحول. سعر الذهب تدخله بنفسك لأن التطبيق ما يتصل بالإنترنت. للتفاصيل (الديون، الأسهم، العقار) راجع مفتياً.</div>`,
+  {action:"حفظ",onMount(el,api){let on=z.on;const calc=()=>{const a=toNum(gv(el,"z-amt")),n=toNum(gv(el,"z-nis"));const v=a&&a>=n?a*.025:0;$("#z-out",el).innerHTML=`<div><span>الزكاة المستحقة</span><b class="num">${v?Math.round(v).toLocaleString("en-US"):a&&n?"لم يبلغ النصاب":"—"}</b></div>`;return v};
+   el.addEventListener("input",calc);el.addEventListener("click",e=>{const s=e.target.closest("#z-on");if(s){on=!on;s.classList.toggle("on",on);s.setAttribute("aria-checked",on)}
+    if(e.target.closest("#z-exp")){const v=calc();if(!v){toast("احسب الزكاة أولاً");return}V.records.push({id:uid(),kind:"expense",title:"زكاة المال",cat:"charity",amount:Math.round(v),freq:"once",months:0,start:gv(el,"z-date")||ymd(new Date()),remind:true});save();toast("أضفتها في مالي")}});
+   api.onAct=()=>{z.on=on;z.date=gv(el,"z-date");save();api.close();refresh();toast("تم الحفظ")}}})}
+function sadaqaSheet(){openSheet("صدقة شهرية",`<div class="card">${inRow("s-t","الاسم","صدقة جارية","")}${inRow("s-a","المبلغ","","ر.س")}${inRow("s-d","تبدأ من",ymd(new Date()),"","","date")}</div><div class="help">تنضاف مصروفاً شهرياً في مالي ويظهر تذكير دفعها في جدولك.</div>`,
+  {action:"إضافة",onMount(el,api){api.onAct=()=>{const a=toNum(gv(el,"s-a"));if(!a){toast("اكتب المبلغ");return}V.records.push({id:uid(),kind:"expense",title:gv(el,"s-t").trim()||"صدقة",cat:"charity",amount:a,freq:"monthly",months:0,start:gv(el,"s-d")||ymd(new Date()),remind:true});save();api.close();refresh();toast("أضفتها في مالي")}}})}
+function wirdSheet(w){const isNew=!w;const d={title:"",anchor:"fajr",offset:0,time:"",recur:"daily",date:ymd(new Date()),...(w||{})};
+ const sh=openSheet(isNew?"ورد جديد":"تعديل الورد",`<div class="card">${inRow("w-t","الاسم",d.title,"مثال: أذكار الصباح الكبرى","text")}
+  ${fr("يرتبط بـ",`<select id="w-a">${opts({...ANCH,time:"وقت محدد"},d.anchor)}</select>`)}${inRow("w-o","بعد الصلاة بـ (دقيقة)",d.offset||"","0","numeric")}${fr("الوقت المحدد",`<input id="w-tm" type="time" value="${esc(d.time||"")}">`)}
+  ${fr("التكرار",`<select id="w-r">${opts(REC,d.recur)}</select>`)}${fr("يبدأ من",`<input id="w-d" type="date" value="${esc(d.date)}">`)}</div>${isNew?"":`<button class="btn danger" id="w-del">حذف الورد</button>`}`,
+  {action:"حفظ",onMount(el,api){api.onAct=()=>{const title=gv(el,"w-t").trim();if(!title){toast("اكتب الاسم");return}const o={id:w?.id||uid(),kind:"wird",title,anchor:gv(el,"w-a"),offset:Math.round(toNum(gv(el,"w-o"))),time:gv(el,"w-tm"),recur:gv(el,"w-r"),date:gv(el,"w-d")||ymd(new Date())};
+   if(o.anchor==="time"&&!o.time){toast("حدد الوقت");return}if(isNew)V.records.push(o);else Object.assign(byId(w.id),o);save();api.close();refresh();toast("تم الحفظ")}}});
+ if(!isNew)confirmDel(sh,"w-del",()=>{removeRecord(w.id);save()})}
+
+/* ───────── HEALTH ───────── */
+const MOOD=["","سيئ","ضعيف","عادي","جيد","ممتاز"];
+const ageOf=b=>{if(!b)return 0;const d=parse(b),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a};
+function vitals(){const p=HL().p,g=HL().g;const w=toNum(p.weight),h=toNum(p.height);if(!w||!h)return null;const m=h/100,bmi=w/(m*m);
+ const cat=bmi<18.5?"نحافة":bmi<25?"وزن طبيعي":bmi<30?"زيادة وزن":"سمنة";const a=ageOf(p.birth);let tdee=0;
+ if(a){const bmr=10*w+6.25*h-5*a+(p.sex==="f"?-161:5);const n=(g.ex||[]).length;tdee=Math.round(bmr*(n===0?1.2:n<=2?1.375:n<=4?1.55:1.725))}
+ return{bmi,cat,lo:18.5*m*m,hi:24.9*m*m,tdee,cups:Math.max(4,Math.round(w*.033/.25))}}
+function nextDose(){const now=new Date(),ds=ymd(now),h=now.getHours()+now.getMinutes()/60,lg=V.log[ds]||{};
+ const l=tasksFor(ds).filter(t=>t.id[0]==="m"&&t.id[1]==="-"&&t.time!=null&&lg[t.id]!=="done"&&t.time>=h-.5).sort((a,b)=>a.time-b.time)[0];return l||null}
+function renderHealth(){const el=$("#s-health");const now=new Date(),ds=ymd(now);const H=HL(),p=H.p,g=H.g,lg=HLOG.get(ds);const V0=vitals();const water=lg.water||0;
+ const meds=recs("med"),appts=recs("appt").filter(a=>a.date>=ds).sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+ const wl=[];for(let i=0;i<90;i++){const k=ymd(addDays(now,-i));const w=HLOG.get(k).weight;if(w)wl.push({k,w})}wl.reverse();
+ let spark="";if(wl.length>1){const ws=wl.map(x=>x.w),lo=Math.min(...ws),hi=Math.max(...ws),r=hi-lo||1,W=300,Hh=70,n=wl.length;
+  const pts=wl.map((x,i)=>`${(W-8-(n-1-i)*(W-16)/(n-1)).toFixed(1)},${(Hh-8-((x.w-lo)/r)*(Hh-16)).toFixed(1)}`).join(" ");spark=`<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto" aria-label="منحنى الوزن"><polyline points="${pts}" fill="none" stroke="var(--hl)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>`}
+ const nd=nextDose(),fn=fastName(now);
+ el.innerHTML=`${navBar("صحي","health")}<div class="wrap">
+ <div class="card pin" style="display:flex;flex-direction:column;gap:14px"><div class="today"><div><div style="font-family:var(--kufi);font-size:22px;font-weight:700;color:var(--wine)">اليوم</div><div class="dates" style="text-align:start;margin-top:4px">${esc(fGreg.format(now))}${fn?`<br><b>${esc(fn)}</b>`:""}</div></div>${ring(Math.min(100,Math.round(100*water/g.water)))}</div>
+  <div class="row" style="padding:0"><div class="g"><div class="t">الماء</div><div class="s num">${water} / ${g.water} كوب${V0?` · المقترح لوزنك ${V0.cups}`:""}</div></div><button class="ib rd" data-h="water" data-d="-1" aria-label="أقل">−</button><button class="ib rd" data-h="water" data-d="1" aria-label="أكثر">${I.plus}</button></div>
+  <div class="row" style="padding:0;border:0"><div class="g"><div class="t">نوم الليلة الماضية</div><div class="s num">${lg.sleep!=null?lg.sleep+" ساعة":"لم يُسجَّل"} · الهدف ${g.sleep}</div></div><button class="ib rd" data-h="sleep" data-d="-.5" aria-label="أقل">−</button><button class="ib rd" data-h="sleep" data-d=".5" aria-label="أكثر">${I.plus}</button></div>
+  <div class="row" style="padding:0;border:0"><div class="g"><div class="t">الخطوات</div><div class="s num">${lg.steps!=null?Number(lg.steps).toLocaleString("en-US"):"لم تُسجَّل"} · الهدف ${g.steps.toLocaleString("en-US")}</div></div><button class="btn ghost sm" data-h="log">قياسات اليوم</button></div></div>
+ ${tasksBlock(ds,["health"],"مهام الصحة اليوم")}
+ <div class="sec">${H4("آخر 7 أيام")}<div class="card pin" style="display:flex;flex-direction:column;gap:14px"><div><div class="s" style="font-size:12.5px;color:var(--ink-2);margin-bottom:6px">الماء (أكواب)</div>${bars(last7("water"),g.water)}</div><div><div class="s" style="font-size:12.5px;color:var(--ink-2);margin-bottom:6px">النوم (ساعات)</div>${bars(last7("sleep"),g.sleep,v=>+(+v).toFixed(1))}</div>
+  ${wl.length?`<div><div class="s" style="font-size:12.5px;color:var(--ink-2);margin-bottom:6px">الوزن: <b class="num">${wl[wl.length-1].w}</b> كجم${wl.length>1?` · التغير <b class="num ${wl[wl.length-1].w-wl[0].w>0?"neg":"pos"}">${(wl[wl.length-1].w-wl[0].w>0?"+":"")+(wl[wl.length-1].w-wl[0].w).toFixed(1)}</b>`:""}</div>${spark}</div>`:""}</div></div>
+ <div class="sec">${H4("الأدوية",`${meds.length}`)}<div class="card">${meds.map(m=>`<button class="row" data-h="med" data-id="${m.id}"><span class="dot" style="background:var(--hl)"></span><div class="g"><div class="t">${esc(m.title)}${m.dose?` · ${esc(m.dose)}`:""}</div><div class="s">${(m.times||[]).map(x=>esc(hourLabel(hhmmToH(x)))).join("، ")} · ${m.recur==="weekly"?"أسبوعي":"يومي"}${m.stock!==""&&m.stock!=null?` · متبقي ${esc(m.stock)}`:""}</div></div>${I.chev}</button>`).join("")}<button class="row" data-h="med"><span class="dot" style="background:var(--wine)"></span><div class="g t">دواء جديد</div></button></div>
+  ${nd?`<div class="help">الجرعة القادمة: <b>${esc(nd.title)}</b> ${esc(hourLabel(nd.time))}</div>`:""}</div>
+ <div class="sec">${H4("المواعيد الطبية",`${appts.length}`)}<div class="card">${appts.map(a=>`<button class="row" data-h="appt" data-id="${a.id}"><span class="dot" style="background:var(--hl)"></span><div class="g"><div class="t">${esc(a.title)}</div><div class="s">${esc(fGreg.format(parse(a.date)))}${a.time?` · ${esc(hourLabel(hhmmToH(a.time)))}`:""}${a.place?` · ${esc(a.place)}`:""}</div></div>${I.chev}</button>`).join("")}<button class="row" data-h="appt"><span class="dot" style="background:var(--wine)"></span><div class="g t">موعد جديد</div></button></div></div>
+ <div class="sec">${H4("ملفي الصحي")}<div class="card pin" style="display:flex;flex-direction:column;gap:12px">
+  ${V0?`<div class="kpis"><div class="kpi"><span class="k">مؤشر كتلة الجسم</span><span class="n num">${V0.bmi.toFixed(1)}</span><span class="k">${V0.cat}</span></div><div class="kpi"><span class="k">الوزن الصحي</span><span class="n num" style="font-size:17px">${Math.round(V0.lo)}–${Math.round(V0.hi)}</span><span class="k">كجم</span></div>${V0.tdee?`<div class="kpi"><span class="k">سعراتك اليومية تقريباً</span><span class="n num">${V0.tdee}</span></div>`:""}<div class="kpi"><span class="k">الماء المقترح</span><span class="n num">${V0.cups}</span><span class="k">كوب يومياً</span></div></div>`
+   :`<div class="help" style="padding:0">أدخل طولك ووزنك لتظهر لك المؤشرات.</div>`}
+  <button class="btn ghost" data-h="profile">تعديل الملف الصحي</button><button class="btn ghost" data-h="goals">الأهداف والعادات</button></div>
+  <div class="help">المؤشرات تقديرية للمعلومة فقط ولا تغني عن الطبيب.</div></div>
+ <div class="sec">${H4("معلومات الطوارئ")}<div class="card pin" style="font-size:14px;line-height:1.9">${p.blood||p.allergy||p.cond||p.ecPhone?`فصيلة الدم: <b>${esc(p.blood||"—")}</b><br>الحساسية: ${esc(p.allergy||"—")}<br>الأمراض المزمنة: ${esc(p.cond||"—")}<br>اتصال الطوارئ: ${esc(p.ecName||"—")} <span class="num">${esc(p.ecPhone||"")}</span>`:`<span class="mut">ما أدخلت شيء بعد. من «تعديل الملف الصحي».</span>`}
+  ${p.blood||p.allergy||p.cond||p.ecPhone?`<div style="margin-top:10px"><button class="btn ghost sm" data-h="copyem">${I.copy}نسخ</button></div>`:""}</div></div>
+ <button class="btn ghost" data-h="cal">${I.cal}تذكيرات التقويم والساعة</button>
+ </div>`}
+bindScreen("s-health",e=>{const b=e.target.closest("[data-h]");if(!b)return;const a=b.dataset.h,ds=ymd(new Date());
+ if(a==="water"){const v=Math.max(0,(HLOG.get(ds).water||0)+ +b.dataset.d);HLOG.set(ds,"water",v);syncWater(ds);save();RENDER["s-health"]()}
+ if(a==="sleep"){const cur=HLOG.get(ds).sleep;const v=Math.min(16,Math.max(0,(cur!=null?cur:HL().g.sleep)+ +b.dataset.d));HLOG.set(ds,"sleep",v);RENDER["s-health"]()}
+ if(a==="log")logSheet();if(a==="profile")profileSheet();if(a==="goals")goalsSheet();if(a==="med")medSheet(b.dataset.id?byId(b.dataset.id):null);if(a==="appt")apptSheet(b.dataset.id?byId(b.dataset.id):null);if(a==="cal")calSheet();
+ if(a==="copyem"){const p=HL().p;copyText(`فصيلة الدم: ${p.blood||"—"}\nالحساسية: ${p.allergy||"—"}\nالأمراض المزمنة: ${p.cond||"—"}\nاتصال الطوارئ: ${p.ecName||"—"} ${p.ecPhone||""}`)}});
+function logSheet(){const ds=ymd(new Date()),lg=HLOG.get(ds);openSheet("قياسات اليوم",`<div class="card">${inRow("l-w","الوزن (كجم)",lg.weight,"مثال 78.5")}${inRow("l-sl","نوم الليلة الماضية (ساعات)",lg.sleep,"مثال 7")}${inRow("l-st","عدد الخطوات",lg.steps,"من تطبيق الصحة أو الساعة","numeric")}
+  ${fr("المزاج",`<select id="l-md">${opts(Object.fromEntries(MOOD.map((m,i)=>[i,i?m:"—"])),lg.mood||0)}</select>`)}${inRow("l-bp","ضغط الدم",lg.bp,"مثال 120/80","text")}${inRow("l-sg","السكر (ملغ/دل)",lg.sugar,"اختياري")}</div>
+  <div class="help">التطبيق ما يقرأ من تطبيق الصحة تلقائياً لأنه معزول عن الإنترنت. اكتب الأرقام بنفسك.</div>`,
+  {action:"حفظ",onMount(el,api){api.onAct=()=>{const n=id=>{const v=toNum(gv(el,id));return v?v:null};HLOG.set(ds,"weight",n("l-w"));HLOG.set(ds,"sleep",n("l-sl"));HLOG.set(ds,"steps",n("l-st"));HLOG.set(ds,"mood",+gv(el,"l-md")||null);HLOG.set(ds,"bp",gv(el,"l-bp").trim()||null);HLOG.set(ds,"sugar",n("l-sg"));
+   const w=n("l-w");if(w)HL().p.weight=w;save();api.close();refresh();toast("تم الحفظ")}}})}
+function profileSheet(){const p=HL().p;openSheet("ملفي الصحي",`<div class="card">${inRow("p-h","الطول (سم)",p.height,"مثال 175")}${inRow("p-w","الوزن (كجم)",p.weight,"مثال 78")}${inRow("p-b","تاريخ الميلاد",p.birth,"","","date")}${fr("الجنس",`<select id="p-s">${opts({m:"ذكر",f:"أنثى"},p.sex)}</select>`)}
+  ${fr("فصيلة الدم",`<select id="p-bl">${opts(Object.fromEntries(["","A+","A-","B+","B-","AB+","AB-","O+","O-"].map(x=>[x,x||"—"])),p.blood)}</select>`)}${inRow("p-al","الحساسية",p.allergy,"مثال: بنسلين","text")}${inRow("p-c","الأمراض المزمنة",p.cond,"مثال: ضغط","text")}${inRow("p-en","اسم اتصال الطوارئ",p.ecName,"","text")}${inRow("p-ep","رقم اتصال الطوارئ",p.ecPhone,"","tel")}</div>`,
+  {action:"حفظ",onMount(el,api){api.onAct=()=>{Object.assign(p,{height:toNum(gv(el,"p-h"))||"",weight:toNum(gv(el,"p-w"))||"",birth:gv(el,"p-b"),sex:gv(el,"p-s"),blood:gv(el,"p-bl"),allergy:gv(el,"p-al").trim(),cond:gv(el,"p-c").trim(),ecName:gv(el,"p-en").trim(),ecPhone:gv(el,"p-ep").trim()});save();api.close();refresh();toast("تم الحفظ")}}})}
+function goalsSheet(){const g=HL().g;let ex=[...(g.ex||[])],wOn=g.wOn,bed=g.bed;
+ openSheet("الأهداف والعادات",`<div class="card">${inRow("g-w","هدف الماء (أكواب)",g.water,"","numeric")}${inRow("g-sl","هدف النوم (ساعات)",g.sleep,"")}${inRow("g-st","هدف الخطوات",g.steps,"","numeric")}
+  ${fr("تذكير الماء",`<span style="flex:1"></span>${swHTML(wOn,'id="g-won"',"تذكير الماء")}`)}${fr("تذكير وقت النوم قبل الفجر",`<span style="flex:1"></span>${swHTML(bed,'id="g-bed"',"تذكير النوم")}`)}</div>
+  <div class="sec">${H4("أيام التمرين")}<div class="chips">${DAYS.map((n,i)=>`<button class="pill ${ex.includes(i)?"on":""}" data-ex="${i}">${n}</button>`).join("")}</div></div>
+  <div class="card">${fr("وقت التمرين",`<select id="g-at">${opts({fajr:"بعد الفجر",dhuhr:"بعد الظهر",asr:"بعد العصر",maghrib:"بعد المغرب",isha:"بعد العشاء"},g.exAt)}</select>`)}</div>
+  <div class="help">وقت النوم يُحسب ليكفيك عدد الساعات قبل أذان الفجر، ويتأخر تذكير الماء والتمرين تلقائياً في أيام الصيام لما بعد المغرب.</div>`,
+  {action:"حفظ",onMount(el,api){el.addEventListener("click",e=>{const x=e.target.closest("[data-ex]");if(x){const i=+x.dataset.ex;ex=ex.includes(i)?ex.filter(v=>v!==i):[...ex,i];x.classList.toggle("on",ex.includes(i));return}
+   const s=e.target.closest("#g-won,#g-bed");if(s){const v=s.id==="g-won"?(wOn=!wOn):(bed=!bed);s.classList.toggle("on",v);s.setAttribute("aria-checked",v)}});
+   api.onAct=()=>{Object.assign(g,{water:Math.max(1,Math.round(toNum(gv(el,"g-w"))||8)),sleep:Math.min(14,Math.max(3,toNum(gv(el,"g-sl"))||7.5)),steps:Math.round(toNum(gv(el,"g-st"))||8000),wOn,bed,ex,exAt:gv(el,"g-at")});save();api.close();refresh();toast("تم الحفظ")}}})}
+function medSheet(m){const isNew=!m;const d={title:"",dose:"",times:["08:00"],recur:"daily",start:ymd(new Date()),months:"",stock:"",...(m||{})};
+ const sh=openSheet(isNew?"دواء جديد":"تعديل الدواء",`<div class="card">${inRow("m-t","اسم الدواء",d.title,"","text")}${inRow("m-d","الجرعة",d.dose,"مثال: حبة | 500 مجم","text")}${inRow("m-tm","الأوقات",(d.times||[]).join(", "),"08:00, 20:00","text")}
+  ${fr("التكرار",`<select id="m-r">${opts({daily:"يومي",weekly:"أسبوعي بيوم البداية"},d.recur)}</select>`)}${fr("تاريخ البداية",`<input id="m-s" type="date" value="${esc(d.start)}">`)}${inRow("m-m","مدة العلاج (أشهر)",d.months||"","فاضي = مستمر","numeric")}${inRow("m-st","المخزون (حبات)",d.stock,"يتناقص مع كل جرعة، وينبهك قبل ما يخلص","numeric")}</div>
+  <div class="help">الأوقات بنظام 24 ساعة وتفصلها فاصلة. كل جرعة تظهر مهمة في جدولك وتصل ساعتك إذا صدّرت التذكيرات للتقويم. تعليم الجرعة «نفذ» ينقص المخزون.</div>${isNew?"":`<button class="btn danger" id="m-del">حذف الدواء</button>`}`,
+  {action:"حفظ",onMount(el,api){api.onAct=()=>{const title=gv(el,"m-t").trim();if(!title){toast("اكتب اسم الدواء");return}const times=gv(el,"m-tm").split(/[,،;؛]/).map(timeOf).filter(Boolean);if(!times.length){toast("اكتب وقت الجرعة");return}
+   const st=gv(el,"m-st").trim();const o={id:m?.id||uid(),kind:"med",title,dose:gv(el,"m-d").trim(),times,recur:gv(el,"m-r"),start:gv(el,"m-s")||ymd(new Date()),months:Math.round(toNum(gv(el,"m-m")))||0,stock:st===""?"":Math.max(0,Math.round(toNum(st)))};
+   if(isNew)V.records.push(o);else Object.assign(byId(m.id),o);save();api.close();refresh();toast("تم الحفظ")}}});
+ if(!isNew)confirmDel(sh,"m-del",()=>{removeRecord(m.id);save()})}
+function apptSheet(a){const isNew=!a;const d={title:"",date:ymd(addDays(new Date(),7)),time:"",place:"",cost:"",note:"",...(a||{})};
+ const sh=openSheet(isNew?"موعد جديد":"تعديل الموعد",`<div class="card">${inRow("a-t","الموعد",d.title,"مثال: فحص عيون","text")}${fr("التاريخ",`<input id="a-d" type="date" value="${esc(d.date)}">`)}${fr("الوقت",`<input id="a-tm" type="time" value="${esc(d.time||"")}">`)}${inRow("a-p","المكان / الطبيب",d.place,"","text")}${inRow("a-c","التكلفة المتوقعة",d.cost,"ر.س")}</div>
+  <div class="help">يظهر في جدولك يوم الموعد، ويذكّرك قبلها بيوم. إذا كتبت التكلفة يضاف مصروف مرة واحدة في مالي بتاريخ الموعد (صحة).</div>${isNew?"":`<button class="btn danger" id="a-del">حذف الموعد</button>`}`,
+  {action:"حفظ",onMount(el,api){api.onAct=()=>{const title=gv(el,"a-t").trim();if(!title){toast("اكتب اسم الموعد");return}const cost=toNum(gv(el,"a-c"));const o={id:a?.id||uid(),kind:"appt",title,date:gv(el,"a-d")||ymd(new Date()),time:gv(el,"a-tm"),place:gv(el,"a-p").trim(),cost:cost||""};
+   if(isNew){V.records.push(o);if(cost){const e={id:uid(),kind:"expense",title:"موعد: "+title,cat:"health",amount:cost,freq:"once",months:0,start:o.date,remind:false,link:undefined};V.records.push(e);o.expense=e.id}}
+   else{Object.assign(byId(a.id),o);const e=a.expense&&byId(a.expense);if(e){e.amount=cost||e.amount;e.start=o.date}}save();api.close();refresh();toast("تم الحفظ")}}});
+ if(!isNew)confirmDel(sh,"a-del",()=>{removeRecord(a.id);save()})}
+
+
+function relSummary(now){const ps=prayerStats(),R=REL();return`صلوات اليوم <span class="num">${Math.round(ps.todayPct/20)}/5</span><br>${R.q.on?`القرآن صفحة <span class="num">${R.q.page}</span>`:esc(fHijri.format(now))}`}
+function hlSummary(now){const g=HL().g,w=HLOG.get(ymd(now)).water||0,nd=nextDose();return`ماء <span class="num">${w}/${g.water}</span> كوب<br>${nd?`الدواء ${esc(hourLabel(nd.time))}`:"لا جرعات قادمة"}`}
+function previewSub(p){if(p.kind==="med")return`${esc(p.dose||"")} ${esc((p.times||[]).join("، "))}`;if(p.kind==="appt")return`${esc(p.date||"")}${p.time?" · "+esc(p.time):""}${p.place?" · "+esc(p.place):""}`;return`${p.anchor&&p.anchor!=="time"?"بعد "+ANCH[p.anchor]:esc(p.time||"")} · ${REC[p.recur]}`}
 
 /* ───────── SETTINGS ───────── */
 function renderSettings(){const el=$("#s-settings");const c=city();
@@ -809,6 +1084,7 @@ function renderSettings(){const el=$("#s-settings");const c=city();
  <div class="sec">${H4("المنطقة والصلاة")}<div class="card">${fr("المدينة",`<select id="s-city">${opts(Object.fromEntries(Object.entries(CITIES).map(([k,v])=>[k,v[0]])),V.settings.city)}</select>`)}
   ${fr("أوقات الصلاة في جدولي",`<span style="flex:1"></span><button class="switch ${V.settings.prayers!==false?"on":""}" data-s="pr" role="switch" aria-checked="${V.settings.prayers!==false}" aria-label="أوقات الصلاة"></button>`)}</div>
   <div class="help">طريقة أم القرى: الفجر 18.5°، والعشاء بعد المغرب بـ 90 دقيقة و120 في رمضان. ${esc(c.name)}: <span class="num">${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}</span></div></div>
+ <div class="sec">${H4("التذكيرات والساعة")}<div class="card"><button class="row" data-s="cal"><div class="g"><div class="t">تصدير التذكيرات إلى التقويم</div><div class="s">تنبيهات الصلاة والأدوية والأقساط على الآيفون وساعة آبل</div></div>${I.chev}</button></div></div>
  <div class="sec">${H4("البيانات",`${V.records.length} سجل`)}<div class="card">
   <button class="row" data-s="sum"><div class="g"><div class="t">نسخ ملخصي MD</div><div class="s">كل بياناتك كملف Markdown مقروء</div></div>${I.chev}</button>
   <button class="row" data-s="backup"><div class="g"><div class="t">نسخ نسخة احتياطية مشفرة</div><div class="s">نص مشفر ما ينفتح إلا برمزك</div></div>${I.chev}</button>
@@ -828,14 +1104,14 @@ $("#s-settings").addEventListener("click",async e=>{const b=e.target.closest("[d
  if(a==="backup"){const blob=await seal(V,KEY,SALT);const sh=openSheet("نسخة احتياطية",`<textarea id="bk" class="mono" readonly style="border:1px solid var(--line);border-radius:12px;background:var(--card);word-break:break-all">${esc(blob)}</textarea><button class="btn" id="bkc">${I.copy}نسخ</button><div class="help">احفظ النص في الملاحظات. ما ينفتح إلا برمز الدخول اللي كان وقت النسخ.</div>`);$("#bkc",sh.el).addEventListener("click",()=>copyText(blob,$("#bk",sh.el)))}
  if(a==="restore"){const sh=openSheet("استعادة",`<textarea id="rs" class="mono" placeholder="الصق النسخة الاحتياطية هنا" style="border:1px solid var(--line);border-radius:12px;background:var(--card)"></textarea><button class="btn" id="rsgo">استعادة وقفل</button><div class="help">بتحل النسخة محل البيانات الحالية، وبعدها تدخل برمز النسخة.</div>`);
   $("#rsgo",sh.el).addEventListener("click",()=>{const v=$("#rs",sh.el).value.trim();try{const o=JSON.parse(v);if(!o.ct||!o.iv||!o.salt)throw 0;store.set(LS_V,v);MEMBLOB=v;sh.close();lockNow();toast("أدخل رمز النسخة")}catch(_){toast("النص غير صالح")}})}
- if(a==="code")changeCode()});
+ if(a==="code")changeCode();if(a==="cal")calSheet()});
 function changeCode(){const sh=openSheet("رمز جديد",`<div class="cstage" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:6px"></div>`,{onClose(){padState=null}});const host=$(".cstage",sh.el);
  sh.el.addEventListener("click",e=>{const k=e.target.closest("[data-k]");if(k)keyIn(k.dataset.k)});
  const first=()=>codeStage({host,title:"اختر الرمز الجديد",hint:"أرقام أو الرموز @ & # * .",onDone:c1=>codeStage({host,title:"أكّد الرمز الجديد",onDone:async c2=>{if(c1!==c2){fail("غير متطابق، أعد من البداية");setTimeout(first,600);return}
   $(".hint",host).innerHTML=spin;SALT=crypto.getRandomValues(new Uint8Array(16));KEY=await deriveKey(c2,SALT);const blob=await seal(V,KEY,SALT);MEMBLOB=blob;store.set(LS_V,blob);padState=null;sh.close();toast("تم تغيير الرمز")}})});first()}
 
 function refresh(){const top=stack[stack.length-1];if(top&&top!=="s-add")RENDER[top]?.()}
-const RENDER={"s-home":renderHome,"s-finance":renderFinance,"s-schedule":renderSchedule,"s-add":renderAdd,"s-religion":renderReligion,"s-settings":renderSettings};
+const RENDER={"s-home":renderHome,"s-finance":renderFinance,"s-schedule":renderSchedule,"s-add":renderAdd,"s-religion":renderReligion,"s-health":renderHealth,"s-settings":renderSettings};
 setInterval(()=>{const t=fClock.format(new Date());for(const id of["lclock","hclock"]){const e=document.getElementById(id);if(e&&e.textContent!==t)e.textContent=t}},5000);
 let hidAt=0;document.addEventListener("visibilitychange",()=>{if(document.hidden){if(V)hidAt=Date.now()}else if(V&&hidAt&&Date.now()-hidAt>300000)lockNow()});
 show("s-login");renderLogin();
