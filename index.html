@@ -869,7 +869,7 @@ $("#s-add").addEventListener("change",e=>{if(e.target.id!=="mdfile")return;const
 const fHP=new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura",{day:"numeric",month:"numeric",year:"numeric"});
 const hij=d=>{try{const p=fHP.formatToParts(d);const g=t=>+(p.find(x=>x.type===t)||{}).value;return{y:g("year"),m:g("month"),d:g("day")}}catch(e){return{y:0,m:0,d:0}}};
 const REL=()=>{const r=V.rel||(V.rel={});const D={adhkarM:true,adhkarE:true,adhkarS:false,duha:false,rawatib:false,witr:false,qiyam:false,jumuah:true,ramadan:true,fastMT:false,fastWhite:false,fastSpecial:true,tsbT:33,ruqya:true,ruqAt:"fajr"};
- for(const k in D)if(r[k]===undefined)r[k]=D[k];r.q=r.q||{on:false,page:1,per:5,at:"fajr",khatm:0};r.z=r.z||{on:false,date:""};return r};
+ for(const k in D)if(r[k]===undefined)r[k]=D[k];r.q=r.q||{on:false,page:1,per:5,at:"fajr",khatm:0};r.h=r.h||{on:false,page:1,reps:20,per:1,at:"fajr",rev:true,revN:5,cycles:0};r.z=r.z||{on:false,date:""};return r};
 const HL=()=>{const h=V.hl||(V.hl={});h.p=h.p||{height:"",weight:"",birth:"",sex:"m",blood:"",allergy:"",cond:"",ecName:"",ecPhone:""};
  h.g=h.g||{water:8,sleep:7.5,steps:8000,wOn:true,bed:true,ex:[],exAt:"asr"};if(!h.g.nap)h.g.nap={on:false,min:60,at:"dhuhr"};if(h.g.phone==null)h.g.phone=120;return h};
 const logOf=key=>({get:ds=>(V[key]&&V[key][ds])||{},set(ds,k,v){V[key]=V[key]||{};const o=V[key][ds]||(V[key][ds]={});if(v===""||v==null||(typeof v==="number"&&isNaN(v)))delete o[k];else o[k]=v;save()}});
@@ -895,6 +895,9 @@ function relTasks(ds,d,t,fast){const R=REL(),L=[],h=hij(d),dow=d.getDay();const 
  if(fast){T("r-fast","نية الصيام والسحور: "+fast,t.fajr-.5);T("r-iftar","الإفطار",t.maghrib)}
  const q=R.q;if(q.on){const a=Math.min(604,q.page),b=Math.min(604,q.page+q.per-1);const today=ds===ymd(new Date());
   T("r-quran",today?`ورد القرآن: صفحة ${a}${b>a?" إلى "+b:""}`:"ورد القرآن",(t[q.at]??t.fajr)+(q.at==="fajr"?.7:.3))}
+ const hf=R.h;if(hf.on){const today=ds===ymd(new Date());const pg=Math.min(604,RLOG.get(ds).hp||hf.page),pb=Math.min(604,pg+hf.per-1);
+  T("r-hifz",today?`حفظ الوجه: صفحة ${pg}${pb>pg?" إلى "+pb:""} (${hf.reps} مرة)`:"حفظ الوجه اليومي",(t[hf.at]??t.fajr)+(hf.at==="fajr"?.5:.3));
+  if(hf.rev&&today&&pg>1){const e=pg-1,st=Math.max(1,e-hf.revN+1);T("r-hifzrev",`مراجعة الحفظ: صفحة ${st}${e>st?" إلى "+e:""}`,(t[hf.at]??t.fajr)+(hf.at==="fajr"?1.2:.8))}}
  if(R.z.on&&R.z.date&&ds>=R.z.date){const s=hij(parse(R.z.date));if(h.m===s.m&&h.d===s.d)T("r-zakat","موعد إخراج الزكاة",9)}
  for(const w of recs("wird")){if(!occurs({recur:w.recur||"daily",date:w.date||V.created||ds},ds))continue;
   const tm=w.anchor&&w.anchor!=="time"?t[w.anchor]+(w.offset||0)/60:hhmmToH(w.time);L.push({id:"x-"+w.id,title:w.title,time:tm,cat:"religion",ref:w.id})}
@@ -918,6 +921,8 @@ function setTaskState(ds,id,st){const L=V.log[ds]||(V.log[ds]={});const prev=L[i
  const was=prev==="done",now=st==="done";
  if(was!==now){const dl=now?1:-1;
   if(id==="r-quran"&&ds===ymd(new Date())){const q=REL().q;let abs=(q.khatm||0)*604+(q.page-1)+dl*q.per;if(abs<0)abs=0;q.khatm=Math.floor(abs/604);q.page=abs%604+1}
+  if(id==="r-hifz"&&ds===ymd(new Date())){const h=REL().h;if(now){RLOG.set(ds,"hp",h.page);RLOG.set(ds,"hifz",Math.max(RLOG.get(ds).hifz||0,h.reps))}else RLOG.set(ds,"hp",null);
+   let abs=(h.cycles||0)*604+(h.page-1)+dl*h.per;if(abs<0)abs=0;h.cycles=Math.floor(abs/604);h.page=abs%604+1}
   if(id[0]==="m"&&id[1]==="-"){const m=byId(id.split("-")[1]);if(m&&m.stock!==""&&m.stock!=null)m.stock=Math.max(0,+m.stock-dl)}
   if(id==="h-water"&&now)HLOG.set(ds,"water",Math.max(HLOG.get(ds).water||0,HL().g.water));
   if(id==="s-step"&&now)SLOG.set(ds,"min",Math.max(SLOG.get(ds).min||0,ST().step.daily))}
@@ -981,6 +986,14 @@ function renderReligion(){const el=$("#s-religion");const now=new Date(),ds=ymd(
   <div class="next">صلوات هذا الأسبوع <b class="num">${ps.done}/${ps.tot}</b> · أيام متتالية بكل الصلوات <b class="num">${ps.streak}</b></div></div>
  ${tasksBlock(ds,["prayer","religion"],"عبادات اليوم")}
  <div class="sec">${H4("الأذكار")}<div class="card">${DZ_LIST.map(([k,n])=>`<button class="row" data-dz="${k}"><span class="dot" style="background:var(--gold)"></span><div class="g"><div class="t">${n}</div><div class="s">${ADHKAR[k].i.length} ${ADHKAR[k].i.length>10?"ذكراً":"أذكار"}</div></div>${I.chev}</button>`).join("")}</div></div>
+ <div class="sec">${H4("وردي",R.h.on?`ختمات الحفظ ${R.h.cycles||0}`:"")}<div class="card pin" style="display:flex;flex-direction:column;gap:12px">
+  ${R.h.on?(()=>{const hf=R.h,n=rl.hifz||0,pg=Math.min(604,rl.hp||hf.page),dn=(V.log[ds]||{})["r-hifz"]==="done";return`<div style="text-align:center"><div class="help" style="padding:0">حفظ اليوم · الوجه <b class="num">${pg}</b>${hf.per>1?` إلى <b class="num">${Math.min(604,pg+hf.per-1)}</b>`:""} · الجزء <b class="num">${Math.min(30,Math.max(1,Math.ceil((pg-1)/20)))}</b></div>
+   <button id="hifzb" data-r="hifz" class="num" style="width:150px;height:150px;border-radius:50%;margin:10px auto;border:2px solid ${dn?"var(--ok)":"var(--gold)"};background:var(--card);font-family:var(--kufi);font-size:44px;font-weight:700;color:${dn?"var(--ok)":"var(--wine)"};display:block">${n}<small style="display:block;font-size:13px;font-weight:500;color:var(--ink-2)">من ${hf.reps}${dn?" ✓":""}</small></button>
+   <div style="display:flex;gap:8px;justify-content:center"><button class="btn ghost sm" data-r="hifz-">تراجع</button><button class="btn ghost sm" data-r="hifzset">إعداد وردي</button></div></div>
+   <div class="meter"><i style="width:${Math.round(100*(hf.page-1)/604)}%;background:var(--gold)"></i></div>
+   <div class="help" style="padding:0">حفظت إلى الصفحة <b class="num">${hf.page-1}</b> من 604${hf.rev&&hf.page>1?` · مراجعة اليوم: ${Math.max(1,pg-hf.revN)} إلى ${pg-1}`:""}</div>`})()
+   :`<div class="help" style="padding:0">فعّل وردي: وجه يومي للحفظ مع عدّاد تكرار (مثلاً 20 مرة). إذا وصلت العدد تكتمل مهمة الحفظ وتنتقل للصفحة التالية، وتظهر لك مراجعة الصفحات السابقة.</div><button class="btn" data-r="hifzset">تفعيل وردي</button>`}
+  <div class="chips"><button class="pill" data-dz="mm">أذكار الصباح والمساء</button><button class="pill" data-dz="ruq">الرقية الشرعية</button><button class="pill" data-dz="sleep">أذكار النوم</button></div></div></div>
  <div class="sec">${H4("ورد القرآن",q.on?`ختمات ${q.khatm||0}`:"")}<div class="card pin" style="display:flex;flex-direction:column;gap:12px">
   ${q.on?`<div class="meter"><i style="width:${Math.round(100*(q.page-1)/604)}%;background:var(--gold)"></i></div>
    <div style="font-size:14px;line-height:1.8">الصفحة <b class="num">${q.page}</b> من 604 · الجزء <b class="num">${juz}</b><br><span class="mut">المتبقي ${left} صفحة، بمعدل ${q.per} يومياً تخلص خلال ${dleft} يوم (${esc(fGregShort.format(addDays(now,dleft)))})</span></div>`
@@ -1010,8 +1023,16 @@ bindScreen("s-religion",e=>{const b=e.target.closest("[data-r]");if(!b)return;co
  if(a==="tsb"){const n=(RLOG.get(ds).tsb||0)+1;RLOG.set(ds,"tsb",n);b.textContent=n;if(R.tsbT<1000&&n%R.tsbT===0)toast("أتممت "+n)}
  if(a==="tsb0"){RLOG.set(ds,"tsb",0);$("#tsb").textContent="0"}
  if(a==="compass")startCompass();
+ if(a==="hifz"){const h=R.h,n=(RLOG.get(ds).hifz||0)+1;RLOG.set(ds,"hifz",n);if(n>=h.reps&&(V.log[ds]||{})["r-hifz"]!=="done")setTaskState(ds,"r-hifz","done");save();RENDER["s-religion"]()}
+ if(a==="hifz-"){const h=R.h,n=Math.max(0,(RLOG.get(ds).hifz||0)-1);RLOG.set(ds,"hifz",n);if(n<h.reps&&(V.log[ds]||{})["r-hifz"]==="done")setTaskState(ds,"r-hifz","done");save();RENDER["s-religion"]()}
+ if(a==="hifzset")hifzSheet();
  if(a==="quran")quranSheet();if(a==="zakat")zakatSheet();if(a==="sadaqa")sadaqaSheet();if(a==="wird")wirdSheet(b.dataset.id?byId(b.dataset.id):null);if(a==="cal")calSheet()});
 $("#s-religion").addEventListener("change",e=>{if(e.target.id==="tsbT"){REL().tsbT=+e.target.value;save();RENDER["s-religion"]()}if(e.target.id==="ruqAt"){REL().ruqAt=e.target.value;save();RENDER["s-religion"]()}});
+function hifzSheet(){const h=REL().h;let on=h.on,rev=h.rev;openSheet("إعداد وردي",`<div class="card">${fr("تفعيل وردي",`<span style="flex:1"></span>${swHTML(on,'id="hf-on"',"تفعيل")}`)}${inRow("hf-p","صفحة الحفظ الحالية",h.page,"1 إلى 604","numeric")}${inRow("hf-r","عدد تكرار الحفظ يومياً",h.reps,"مثال 20","numeric")}${inRow("hf-n","صفحات الحفظ كل يوم",h.per,"عادة 1","numeric")}
+  ${fr("وقت الحفظ",`<select id="hf-at">${opts({fajr:"بعد الفجر",dhuhr:"بعد الظهر",asr:"بعد العصر",maghrib:"بعد المغرب",isha:"بعد العشاء"},h.at)}</select>`)}${fr("مراجعة الصفحات السابقة",`<span style="flex:1"></span>${swHTML(rev,'id="hf-rv"',"مراجعة")}`)}${inRow("hf-rn","عدد صفحات المراجعة",h.revN,"مثال 5","numeric")}</div>
+  <div class="help">كل ضغطة على الدائرة تعدّ تكراراً. لما توصل العدد تكتمل مهمة الحفظ ويتقدم الوجه تلقائياً. إذا علّمت المهمة منفذة من جدولك يكتمل العدّاد كذلك. التطبيق يتابع حفظك وتكرارك، والنص تقرأه من مصحفك.</div>`,
+  {action:"حفظ",onMount(el,api){el.addEventListener("click",e=>{const s=e.target.closest("#hf-on,#hf-rv");if(!s)return;const v=s.id==="hf-on"?(on=!on):(rev=!rev);s.classList.toggle("on",v);s.setAttribute("aria-checked",v)});
+   api.onAct=()=>{Object.assign(h,{on,page:Math.min(604,Math.max(1,Math.round(toNum(gv(el,"hf-p"))||1))),reps:Math.max(1,Math.round(toNum(gv(el,"hf-r"))||20)),per:Math.max(1,Math.min(20,Math.round(toNum(gv(el,"hf-n"))||1))),at:gv(el,"hf-at"),rev,revN:Math.max(1,Math.min(30,Math.round(toNum(gv(el,"hf-rn"))||5)))});save();api.close();refresh();toast("تم الحفظ")}}})}
 function quranSheet(){const R=REL(),q=R.q;const sh=openSheet("ورد القرآن",`<div class="card">${fr("تفعيل الورد",`<span style="flex:1"></span>${swHTML(q.on,'id="q-on"',"تفعيل")}`)}
   ${inRow("q-page","الصفحة الحالية",q.page,"1 إلى 604","numeric")}${inRow("q-per","صفحات كل يوم",q.per,"مثال 5","numeric")}
   ${fr("وقت الورد",`<select id="q-at">${opts({fajr:"بعد الفجر",dhuhr:"بعد الظهر",asr:"بعد العصر",maghrib:"بعد المغرب",isha:"بعد العشاء"},q.at)}</select>`)}</div>
