@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>gh</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -43,10 +43,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
 #app{position:relative;height:100%;max-width:440px;margin:0 auto;overflow:hidden;background:var(--paper)}
 .screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;background:var(--paper);will-change:transform;-webkit-overflow-scrolling:touch}
 .wrap{padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));padding-block:4px 48px;display:flex;flex-direction:column;gap:22px;position:relative}
-.dim{position:absolute;inset:0;background:#2B2326;opacity:0;pointer-events:none}
-.paper-grain{position:absolute;inset:0;pointer-events:none;opacity:.5;background:
-  radial-gradient(80% 50% at 100% 0%,rgba(201,164,94,.10),transparent 70%),
-  radial-gradient(70% 45% at 0% 100%,rgba(122,34,54,.05),transparent 70%)}
+.dim{position:absolute;inset:0;background:#2B2326;opacity:0;pointer-events:none;will-change:opacity}
+.paper-grain{position:absolute;inset:0;pointer-events:none;background:
+  radial-gradient(80% 50% at 100% 0%,rgba(201,164,94,.05),transparent 70%),
+  radial-gradient(70% 45% at 0% 100%,rgba(122,34,54,.025),transparent 70%)}
 
 /* nav bar */
 .bar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:84px 1fr 84px;align-items:center;min-height:54px;
@@ -69,7 +69,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .sec>h4 small{margin-inline-start:auto;font-family:var(--ui);font-size:12px;color:var(--ink-3);font-weight:400}
 
 /* cards */
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.8) inset,0 6px 18px -12px rgba(80,55,20,.25)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 6px 18px -12px rgba(80,55,20,.25)}
 .pin{padding:16px}
 .row{display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:54px;text-align:start;width:100%}
 .row+.row{border-top:1px solid var(--line-2)}
@@ -205,6 +205,8 @@ button.row:active{background:var(--wine-soft)}
 .step b{font-family:var(--kufi);color:var(--gold);font-size:18px;line-height:1}
 .step span{font-size:12.5px;line-height:1.55;color:var(--ink-2)}
 textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(--ink);padding:14px 16px;font:15px/1.7 var(--ui);resize:vertical;outline:none;direction:rtl}
+/* iOS zooms the whole page into any field under 16px on focus (paste box on the add page, backup/restore boxes) */
+@supports (-webkit-touch-callout:none){textarea,textarea.mono{font-size:16px}}
 .tools{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line-2);flex-wrap:wrap}
 .tools label.btn{cursor:pointer}
 .pv{display:flex;align-items:center;gap:12px;padding:12px 16px}
@@ -246,8 +248,8 @@ textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(-
 
 /* sheet + forms */
 .sheet-wrap{position:absolute;inset:0;z-index:50}
-.scrim{position:absolute;inset:0;background:rgba(43,35,38,.38);opacity:0}
-.sheet{position:absolute;inset-inline:0;bottom:0;max-height:92%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;background:rgba(245,242,236,.96);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:1px solid var(--line);box-shadow:0 -20px 50px -20px rgba(43,35,38,.35);will-change:transform}
+.scrim{position:absolute;inset:0;background:rgba(43,35,38,.38);opacity:0;will-change:opacity}
+.sheet{position:absolute;inset-inline:0;bottom:0;max-height:92%;display:flex;flex-direction:column;border-radius:26px 26px 0 0;background:#F5F2EC;border-top:1px solid var(--line);box-shadow:0 -20px 50px -20px rgba(43,35,38,.35);will-change:transform}
 .grab{padding:8px 12px 6px;touch-action:none;cursor:grab}
 .grab::before{content:"";display:block;width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
 .grab .hd{display:grid;grid-template-columns:84px 1fr 84px;align-items:center}
@@ -349,7 +351,7 @@ const fGregShort=new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn",{month:"lo
 const fHijri=new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn",{day:"numeric",month:"long",year:"numeric"});
 const fHijriM=new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura",{month:"numeric"});
 const fClock=new Intl.DateTimeFormat("ar-SA-u-nu-latn",{hour:"numeric",minute:"2-digit",hour12:true});
-const hijriMonth=d=>{try{return +fHijriM.format(d)}catch(e){return 0}};
+const hijriMonth=d=>{try{return hij(d).m}catch(e){return 0}};
 const hourLabel=h=>{if(h==null||!isFinite(h))return"";let m=Math.round(h*60)%1440;if(m<0)m+=1440;return fClock.format(new Date(2000,0,1,Math.floor(m/60),m%60))};
 const hhmmToH=s=>{if(!s)return null;const [h,m]=s.split(":").map(Number);return isFinite(h)?h+(m||0)/60:null};
 const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -363,13 +365,23 @@ const store={get(k){try{return localStorage.getItem(k)}catch(e){storageOK=false;
 
 /* ───────── crypto: the 6-char code is the only key ───────── */
 const ITER=600000,enc=new TextEncoder(),dec=new TextDecoder();
-const b64=u=>{let s="";u=new Uint8Array(u);for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s)};
-const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const b64=u=>{u=new Uint8Array(u);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const unb64=s=>{const b=atob(s),n=b.length,u=new Uint8Array(n);for(let i=0;i<n;i++)u[i]=b.charCodeAt(i);return u};
 async function deriveKey(code,salt,iter=ITER){const base=await crypto.subtle.importKey("raw",enc.encode(code),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
-async function seal(obj,key,salt){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,enc.encode(JSON.stringify(obj)));return JSON.stringify({v:2,alg:"AES-256-GCM",kdf:"PBKDF2-SHA256",iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)})}
+async function seal(obj,key,salt){return sealJSON(JSON.stringify(obj),key,salt)}
+async function sealJSON(json,key,salt){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,enc.encode(json));return'{"v":2,"alg":"AES-256-GCM","kdf":"PBKDF2-SHA256","iter":'+ITER+',"salt":"'+b64(salt)+'","iv":"'+b64(iv)+'","ct":"'+b64(ct)+'"}'}
 async function unseal(blob,code){const o=JSON.parse(blob);const salt=unb64(o.salt);const key=await deriveKey(code,salt,o.iter||ITER);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(o.iv)},key,unb64(o.ct));return{data:JSON.parse(dec.decode(pt)),key,salt}}
 let V=null,KEY=null,SALT=null,MEMBLOB=null,saveT=null;
-function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{if(!V||!KEY)return;const blob=await seal(V,KEY,SALT);MEMBLOB=blob;store.set(LS_V,blob)},250)}
+/* saving re-encrypts the whole vault (~1MB with receipts), so it waits until no spring is moving and the finger/keyboard has been still, never longer than 4s; it is flushed on hide and lock, and skipped when nothing changed */
+const MOVING=new Set();let dirty=false,dirtyAt=0,lastIn=0,saveGen=0,lastJSON=null,lastKey=null;
+for(const t of["pointerdown","pointermove","input","scroll"])addEventListener(t,()=>{lastIn=performance.now()},{capture:true,passive:true});
+function save(){if(!dirty){dirty=true;dirtyAt=performance.now()}clearTimeout(saveT);saveT=setTimeout(flush,600)}
+function discardSaves(){clearTimeout(saveT);saveT=null;dirty=false;saveGen++;lastJSON=lastKey=null}
+async function flush(force){clearTimeout(saveT);saveT=null;if(!dirty||!V||!KEY)return;const now=performance.now();
+ if(!force&&now-dirtyAt<4000&&(MOVING.size||now-lastIn<450)){saveT=setTimeout(flush,200);return}
+ dirty=false;const json=JSON.stringify(V),key=KEY;if(json===lastJSON&&key===lastKey)return;
+ lastJSON=json;lastKey=key;const g=++saveGen;let blob;try{blob=await sealJSON(json,key,SALT)}catch(e){if(g===saveGen){lastJSON=null;dirty=true}return}
+ if(g!==saveGen)return;MEMBLOB=blob;if(!store.set(LS_V,blob))lastJSON=null}
 const vaultBlob=()=>store.get(LS_V)||MEMBLOB;
 
 /* ───────── ONE DATABASE: every entry is a record; tasks link to records ───────── */
@@ -386,12 +398,12 @@ function removeRecord(id){V.records=V.records.filter(r=>r.id!==id);for(const r o
 class Spring{constructor(v,cb){this.x=v;this.v=0;this.t=v;this.cb=cb;this.raf=0}
  to(t,{response=.38,damping=1,velocity}={}){this.t=t;if(velocity!=null)this.v=velocity;this.k=Math.pow(2*Math.PI/response,2);this.c=4*Math.PI*damping/response;
   if(reduceMotion){this.set(t);return Promise.resolve()}
-  return new Promise(res=>{const prev=this.done;this.done=()=>{prev&&prev();res()};if(!this.raf){let last=performance.now();const step=now=>{let dt=Math.min(.064,(now-last)/1000);last=now;const n=Math.max(1,Math.ceil(dt/(1/240)));const h=dt/n;
+  return new Promise(res=>{const prev=this.done;this.done=()=>{prev&&prev();res()};if(!this.raf){MOVING.add(this);let last=performance.now();const step=now=>{let dt=Math.min(.064,(now-last)/1000);last=now;const n=Math.max(1,Math.ceil(dt/(1/240)));const h=dt/n;
     for(let i=0;i<n;i++){const a=-this.k*(this.x-this.t)-this.c*this.v;this.v+=a*h;this.x+=this.v*h}
-    if(Math.abs(this.x-this.t)<.3&&Math.abs(this.v)<4){this.x=this.t;this.v=0;this.raf=0;this.cb(this.x);const d=this.done;this.done=null;d&&d();return}
+    if(Math.abs(this.x-this.t)<.3&&Math.abs(this.v)<4){this.x=this.t;this.v=0;this.raf=0;MOVING.delete(this);this.cb(this.x);const d=this.done;this.done=null;d&&d();return}
     this.cb(this.x);this.raf=requestAnimationFrame(step)};this.raf=requestAnimationFrame(step)}})}
- set(x){cancelAnimationFrame(this.raf);this.raf=0;this.x=this.t=x;this.v=0;this.cb(x);const d=this.done;this.done=null;d&&d()}
- stop(){cancelAnimationFrame(this.raf);this.raf=0}}
+ set(x){cancelAnimationFrame(this.raf);this.raf=0;MOVING.delete(this);this.x=this.t=x;this.v=0;this.cb(x);const d=this.done;this.done=null;d&&d()}
+ stop(){cancelAnimationFrame(this.raf);this.raf=0;MOVING.delete(this)}}
 const project=(v,d=.998)=>(v/1000)*d/(1-d);
 const rubber=(o,dim,c=.55)=>(o*dim*c)/(dim+c*Math.abs(o));
 function tracker(){const h=[];return{push(x){const t=performance.now();h.push([x,t]);while(h.length>1&&t-h[0][1]>100)h.shift()},vel(){if(h.length<2)return 0;const [x0,t0]=h[0],[x1,t1]=h[h.length-1];return t1>t0?(x1-x0)/((t1-t0)/1000):0}}}
@@ -399,45 +411,53 @@ function tracker(){const h=[];return{push(x){const t=performance.now();h.push([x
 /* ───────── navigation ───────── */
 const app=$("#app");const stack=[];const W=()=>app.clientWidth;
 function ensureDim(s){if(s&&!s.querySelector(":scope>.dim")){const d=document.createElement("div");d.className="dim";s.appendChild(d)}}
-function place(top,under,x){top.style.transform=`translate3d(${x}px,0,0)`;if(under){under.style.transform=`translate3d(${.3*(x+W())}px,0,0)`;const d=under.querySelector(":scope>.dim");if(d)d.style.opacity=String(.12*(1+x/W()))}}
-function show(id){for(const s of app.querySelectorAll(".screen")){s.hidden=s.id!==id;s.style.transform=""}stack.length=0;stack.push(id)}
-function push(id){const under=$("#"+stack[stack.length-1]),top=$("#"+id);RENDER[id]&&RENDER[id]();top.hidden=false;top.scrollTop=0;stack.push(id);ensureDim(under);
- const sp=new Spring(-W(),x=>place(top,under,x));top._sp=sp;sp.set(-W());sp.to(0,{response:.42,damping:1})}
+function place(top,under,x){const w=W();top.style.transform=`translate3d(${x}px,0,0)`;if(under){under.style.transform=`translate3d(${.3*(x+w)}px,0,0)`;const d=under.querySelector(":scope>.dim");if(d)d.style.opacity=String(.12*(1+x/w))}}
+function show(id){for(const s of app.querySelectorAll(".screen")){s.hidden=s.id!==id;s.style.transform="";s.style.zIndex=""}stack.length=0;stack.push(id)}
+/* the pushed page always stacks above the one it covers (z-index = depth, not DOM order); a page already in the stack (double tap) or a tap during the unlock fade is ignored; a page still sliding out is either re-used (same page) or put away */
+function push(id){if(stack.includes(id)||!$("#s-login").hidden)return;const under=$("#"+stack[stack.length-1]),top=$("#"+id);
+ for(const s of app.querySelectorAll(".screen"))if(s!==top&&!s.hidden&&!stack.includes(s.id)){s._sp&&s._sp.stop();s.hidden=true;s.style.transform="";s.style.zIndex=""}
+ ensureDim(under);const live=!top.hidden&&!!(top._sp&&top._sp.raf);RENDER[id]&&RENDER[id]();top.hidden=false;if(!live)top.scrollTop=0;stack.push(id);top.style.zIndex=String(stack.length);
+ const sp=top._sp||new Spring(-W(),()=>{});top._sp=sp;sp.cb=x=>place(top,under,x);if(!live)sp.set(-W());sp.to(0,{response:.42,damping:1})}
 function pop(velocity){if(stack.length<2)return;const top=$("#"+stack[stack.length-1]),under=$("#"+stack[stack.length-2]);
  const sp=top._sp||new Spring(0,()=>{});sp.cb=x=>place(top,under,x);stack.pop();RENDER[under.id]&&RENDER[under.id]();ensureDim(under);
- sp.to(-W(),{response:.38,damping:1,velocity}).then(()=>{if(stack[stack.length-1]===under.id){top.hidden=true;top.style.transform="";under.style.transform="";const d=under.querySelector(":scope>.dim");d&&(d.style.opacity="0")}})}
+ sp.to(-W(),{response:.38,damping:1,velocity}).then(()=>{if(stack[stack.length-1]===under.id){top.hidden=true;top.style.transform="";top.style.zIndex="";under.style.transform="";const d=under.querySelector(":scope>.dim");d&&(d.style.opacity="0")}})}
 (()=>{let st=null;
  app.addEventListener("pointerdown",e=>{if(stack.length<2||$(".sheet-wrap"))return;const r=app.getBoundingClientRect();if(e.clientX<r.right-26)return;
   const top=$("#"+stack[stack.length-1]),under=$("#"+stack[stack.length-2]);top._sp&&top._sp.stop();
   st={id:e.pointerId,x0:e.clientX,base:top._sp?top._sp.x:0,top,under,tr:tracker(),live:false,cur:0};st.tr.push(e.clientX)},{passive:true});
  app.addEventListener("pointermove",e=>{if(!st||e.pointerId!==st.id)return;let x=st.base+(e.clientX-st.x0);if(!st.live){if(Math.abs(e.clientX-st.x0)<10)return;st.live=true;try{app.setPointerCapture(e.pointerId)}catch(_){}}
-  if(x>0)x=rubber(x,W());st.tr.push(e.clientX);place(st.top,st.under,x);st.cur=x});
+  if(x>0)x=rubber(x,W());st.tr.push(e.clientX);place(st.top,st.under,x);st.cur=x},{passive:true});
  const end=e=>{if(!st||e.pointerId!==st.id)return;const s=st;st=null;if(!s.live)return;const v=s.tr.vel();const proj=s.cur+project(v);
   const sp=s.top._sp||new Spring(s.cur,()=>{});s.top._sp=sp;sp.x=s.cur;sp.cb=x=>place(s.top,s.under,x);
   if(proj<-W()/2)pop(v);else sp.to(0,{response:.35,damping:Math.abs(v)>300?.82:1,velocity:v})};
- app.addEventListener("pointerup",end);app.addEventListener("pointercancel",end)})();
+ app.addEventListener("pointerup",end,{passive:true});app.addEventListener("pointercancel",end,{passive:true})})();
 
 /* ───────── sheets ───────── */
 function openSheet(title,body,{action,onMount,onClose}={}){
  const wrap=document.createElement("div");wrap.className="sheet-wrap";
  wrap.innerHTML=`<div class="scrim"></div><div class="sheet" role="dialog" aria-label="${esc(title)}"><div class="grab"><div class="hd"><button class="ib" data-x="close">إلغاء</button><h3>${esc(title)}</h3><span style="justify-self:end">${action?`<button class="ib" data-x="act" style="font-weight:700">${esc(action)}</button>`:""}</span></div></div><div class="body">${body}</div></div>`;
  app.appendChild(wrap);const sh=$(".sheet",wrap),scrim=$(".scrim",wrap);const H=()=>sh.offsetHeight||500;
- const sp=new Spring(H(),y=>{sh.style.transform=`translate3d(0,${y}px,0)`;scrim.style.opacity=String(Math.max(0,1-y/H()))});sp.set(H());sp.to(0,{response:.4,damping:1});
- const api={el:wrap,close(v){sp.to(H()+20,{response:.32,damping:1,velocity:v}).then(()=>{wrap.remove();onClose&&onClose()})}};
+ const sp=new Spring(H(),y=>{const h=H();sh.style.transform=`translate3d(0,${y}px,0)`;scrim.style.opacity=String(Math.max(0,1-y/h))});
+ /* start the slide after the caller has filled the body (finSheet/changeCode fill it after openSheet returns); a microtask still runs before the first paint */
+ queueMicrotask(()=>{sp.set(H());sp.to(0,{response:.4,damping:1})});
+ const api={el:wrap,close(v){if(!api.closing){api.closing=true;sheetsClosing++}sp.to(H()+20,{response:.32,damping:1,velocity:v}).then(()=>{wrap.remove();if(api.closing){api.closing=false;sheetsClosing--}onClose&&onClose();if(!sheetsClosing&&refreshDue){refreshDue=false;refresh()}})}};
  scrim.addEventListener("click",()=>api.close());
  wrap.addEventListener("click",e=>{const b=e.target.closest("[data-x]");if(!b)return;if(b.dataset.x==="close")api.close();if(b.dataset.x==="act")api.onAct&&api.onAct()});
  const g=$(".grab",wrap);let st=null;
- g.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;sp.stop();st={y0:e.clientY,base:sp.x,tr:tracker()};st.tr.push(e.clientY);g.setPointerCapture(e.pointerId)});
- g.addEventListener("pointermove",e=>{if(!st)return;let y=st.base+(e.clientY-st.y0);if(y<0)y=-rubber(-y,H());st.tr.push(e.clientY);sp.x=y;sp.cb(y)});
+ g.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;sp.stop();st={y0:e.clientY,base:sp.x,tr:tracker()};st.tr.push(e.clientY);g.setPointerCapture(e.pointerId)},{passive:true});
+ g.addEventListener("pointermove",e=>{if(!st)return;let y=st.base+(e.clientY-st.y0);if(y<0)y=-rubber(-y,H());st.tr.push(e.clientY);sp.x=y;sp.cb(y)},{passive:true});
  const end=()=>{if(!st)return;const v=st.tr.vel();st=null;const p=sp.x+project(v);if(p>H()*.45)api.close(v);else sp.to(0,{response:.3,damping:Math.abs(v)>300?.8:1,velocity:v})};
- g.addEventListener("pointerup",end);g.addEventListener("pointercancel",end);
+ g.addEventListener("pointerup",end,{passive:true});g.addEventListener("pointercancel",end,{passive:true});
  onMount&&onMount(sh,api);return api}
 
 /* ───────── prayer times (Umm al-Qura) ───────── */
 const D2R=Math.PI/180,R2D=180/Math.PI;
 const dsin=d=>Math.sin(d*D2R),dcos=d=>Math.cos(d*D2R),dtan=d=>Math.tan(d*D2R),darcsin=x=>Math.asin(x)*R2D,darccos=x=>Math.acos(Math.max(-1,Math.min(1,x)))*R2D,darctan2=(y,x)=>Math.atan2(y,x)*R2D,darccot=x=>Math.atan(1/x)*R2D;
 const fix=(a,b)=>{a=a-b*Math.floor(a/b);return a<0?a+b:a};
-function prayerTimes(date,lat,lng,tz){let y=date.getFullYear(),m=date.getMonth()+1,d=date.getDate();if(m<=2){y-=1;m+=12}const A=Math.floor(y/100),B=2-A+Math.floor(A/4);
+/* pure in (local date, place): computed once per day and city */
+const PT=new Map();
+function prayerTimes(date,lat,lng,tz){const k=ymd(date)+"|"+lat+"|"+lng+"|"+tz;let r=PT.get(k);if(!r){if(PT.size>800)PT.clear();r=prayerTimes0(date,lat,lng,tz);PT.set(k,r)}return r}
+function prayerTimes0(date,lat,lng,tz){let y=date.getFullYear(),m=date.getMonth()+1,d=date.getDate();if(m<=2){y-=1;m+=12}const A=Math.floor(y/100),B=2-A+Math.floor(A/4);
  const jd=Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5-lng/(15*24);
  const sun=t=>{const D=jd+t-2451545,g=fix(357.529+.98560028*D,360),q=fix(280.459+.98564736*D,360),L=fix(q+1.915*dsin(g)+.02*dsin(2*g),360),e=23.439-.00000036*D;const RA=fix(darctan2(dcos(e)*dsin(L),dcos(L))/15,24);return{decl:darcsin(dsin(e)*dsin(L)),eqt:q/15-RA}};
  const noon=t=>fix(12-sun(t).eqt,24);
@@ -461,10 +481,10 @@ function loan(it){const P=it.amount||0,n=Math.max(1,Math.round(it.months||1)),r=
  if(r<=0){inst=P/n;profit=0}else if(it.rateType==="reducing"){const i=r/12;inst=P*i/(1-Math.pow(1+i,-n));profit=inst*n-P}else{profit=P*r*n/12;inst=(P+profit)/n}
  let apr=0;if(profit>0.01){let lo=0,hi=1;for(let k=0;k<80;k++){const i=(lo+hi)/2;const pv=inst*(1-Math.pow(1+i,-n))/i;pv>P?lo=i:hi=i}apr=((lo+hi)/2)*12*100}
  return{inst,profit,apr,n,P}}
-function debtState(it,today){const L=loan(it);const start=parse(it.start);let paid=0;for(let k=1;k<=L.n;k++){if(addMonths(start,k)<=today)paid++;else break}
+function debtState(it,today,wantC){const L=loan(it);const start=parse(it.start);let paid=0;for(let k=1;k<=L.n;k++){if(addMonths(start,k)<=today)paid++;else break}
  const rem=L.n-paid;const end=addMonths(start,L.n);let remPrincipal;
  if(it.rateType==="reducing"&&it.rate>0){const i=it.rate/1200;remPrincipal=L.P*Math.pow(1+i,paid)-L.inst*(Math.pow(1+i,paid)-1)/i}else remPrincipal=L.P*(rem/L.n);
- let confirmed=0;for(const day in V.log)for(const id in V.log[day])if(id.startsWith("d-"+it.id+"-")&&V.log[day][id]==="done")confirmed++;
+ let confirmed=0;if(wantC)for(const day in V.log)for(const id in V.log[day])if(id.startsWith("d-"+it.id+"-")&&V.log[day][id]==="done")confirmed++;
  return{...L,paid,rem,end,remTotal:L.inst*rem,remProfit:L.inst*rem-remPrincipal,next:rem>0?addMonths(start,paid+1):null,confirmed}}
 function flowState(it,today){const start=parse(it.start);const months=it.months||0;const end=months?addMonths(start,months):null;
  const active=!end||today<end;const remMonths=end?Math.max(0,monthsBetween(today,end)+(today<end?1:0)):Infinity;
@@ -674,7 +694,7 @@ async function create(name,code){$(".hint",padState.host).innerHTML=spin;SALT=cr
 function enter(){padState=null;RENDER["s-home"]();const home=$("#s-home"),login=$("#s-login");home.hidden=false;
  const sp=new Spring(0,p=>{login.style.opacity=String(1-p);login.style.transform=`scale(${1+.05*p})`;home.style.opacity=String(p);home.style.transform=`scale(${.97+.03*p})`});
  sp.to(1,{response:.45,damping:1}).then(()=>{login.hidden=true;login.style.cssText="";home.style.cssText="";$("#login").innerHTML="";stack.length=0;stack.push("s-home")})}
-function lockNow(){V=null;KEY=null;SALT=null;document.querySelectorAll(".sheet-wrap").forEach(x=>x.remove());show("s-login");renderLogin()}
+function lockNow(){flush(true);V=null;KEY=null;SALT=null;lastJSON=lastKey=null;document.querySelectorAll(".sheet-wrap").forEach(x=>x.remove());show("s-login");renderLogin()}
 
 /* ───────── shared chrome ───────── */
 const navBar=(title,act)=>`<div class="bar"><span><button class="ib" data-back aria-label="رجوع">${I.back}<span>رجوع</span></button></span><h1>${esc(title)}</h1><span class="end">${act?`<button class="ib rd" data-add="${act}" aria-label="إضافة">${I.plus}</button>`:""}</span></div>`;
@@ -718,7 +738,7 @@ function renderFinance(){const el=$("#s-finance");const now=new Date();const f=f
  </div>`}
 function linkedCount(id){return recs("task").filter(t=>t.link===id).length}
 function itemRow(it,c,now){let sub,val;const lc=linkedCount(it.id);
- if(it.kind==="debt"){const s=debtState(it,startOfDay(now));sub=`${CAT.debt[it.cat]||""} · ${s.rem?`متبقي ${s.rem} من ${s.n}`:"مسدد بالكامل"}${s.apr?` · فعلي ${s.apr.toFixed(1)}%`:""}${s.confirmed?` · مؤكد ${s.confirmed}`:""}`;val=money(s.inst)}
+ if(it.kind==="debt"){const s=debtState(it,startOfDay(now),true);sub=`${CAT.debt[it.cat]||""} · ${s.rem?`متبقي ${s.rem} من ${s.n}`:"مسدد بالكامل"}${s.apr?` · فعلي ${s.apr.toFixed(1)}%`:""}${s.confirmed?` · مؤكد ${s.confirmed}`:""}`;val=money(s.inst)}
  else{const f=flowState(it,now);sub=`${CAT[it.kind][it.cat]||""} · ${FREQ[it.freq||"monthly"][0]}${it.months&&f.end?` · ينتهي ${fGregShort.format(f.end)}`:""}${f.active?"":" · منتهي"}`;val=money(it.amount)}
  return`<button class="row" data-edit="${it.id}"><span class="dot" style="background:var(--${c})"></span><div class="g"><div class="t">${esc(it.title)}</div><div class="s">${esc(sub)}${lc?` · ${lc} مهمة مرتبطة`:""}</div></div><span class="v num">${val}</span>${I.chev}</button>`}
 $("#s-finance").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(a){if(a.dataset.act==="manual")finSheet();if(a.dataset.act==="demo")demo();return}const ed=e.target.closest("[data-edit]");if(ed)finSheet(byId(ed.dataset.edit))});
@@ -808,7 +828,7 @@ function renderSchedule(){const el=$("#s-schedule");const now=new Date();if(!vie
  </div>`}
 $("#s-schedule").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(a&&a.dataset.act==="task"){taskSheet();return}
  const dn=e.target.closest("[data-day]");if(dn){const n=+dn.dataset.day;viewDate=n===0?ymd(new Date()):ymd(addDays(parse(viewDate),n));RENDER["s-schedule"]();return}
- const c=e.target.closest("[data-st]");if(c){setTaskState(viewDate,c.dataset.id,c.dataset.st);RENDER["s-schedule"]();return}
+ const c=e.target.closest("[data-st]");if(c){setTaskState(viewDate,c.dataset.id,c.dataset.st);markTri(c);afterPaint(()=>{if(V)RENDER["s-schedule"]()});return}
  const tk=e.target.closest("[data-task]");if(tk)taskSheet(byId(tk.dataset.task))});
 function taskSheet(task){const isNew=!task;const d={title:"",cat:"general",recur:"once",date:viewDate||ymd(new Date()),time:"",link:"",imp:"mid",...(task||{})};
  const links={"":"بدون ربط",...Object.fromEntries(finRecs().map(r=>[r.id,`${KIND[r.kind]}: ${r.title}`]))};
@@ -867,7 +887,9 @@ $("#s-add").addEventListener("change",e=>{if(e.target.id!=="mdfile")return;const
 
 /* ───────── RELIGION & HEALTH: records + settings feed the same task engine ───────── */
 const fHP=new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura",{day:"numeric",month:"numeric",year:"numeric"});
-const hij=d=>{try{const p=fHP.formatToParts(d);const g=t=>+(p.find(x=>x.type===t)||{}).value;return{y:g("year"),m:g("month"),d:g("day")}}catch(e){return{y:0,m:0,d:0}}};
+/* pure in the local date: one Intl call per calendar day */
+const HJ=new Map();
+const hij=d=>{const k=ymd(d);let r=HJ.get(k);if(r)return r;try{const p=fHP.formatToParts(d);const g=t=>+(p.find(x=>x.type===t)||{}).value;r={y:g("year"),m:g("month"),d:g("day")}}catch(e){r={y:0,m:0,d:0}}if(HJ.size>1500)HJ.clear();HJ.set(k,r);return r};
 const REL=()=>{const r=V.rel||(V.rel={});const D={adhkarM:true,adhkarE:true,adhkarS:false,duha:false,rawatib:false,witr:false,qiyam:false,jumuah:true,ramadan:true,fastMT:false,fastWhite:false,fastSpecial:true,tsbT:33,ruqya:true,ruqAt:"fajr"};
  for(const k in D)if(r[k]===undefined)r[k]=D[k];r.q=r.q||{on:false,page:1,per:5,at:"fajr",khatm:0};r.h=r.h||{on:false,page:1,reps:20,per:1,at:"fajr",rev:true,revN:5,cycles:0};r.z=r.z||{on:false,date:""};return r};
 const HL=()=>{const h=V.hl||(V.hl={});h.p=h.p||{height:"",weight:"",birth:"",sex:"m",blood:"",allergy:"",cond:"",ecName:"",ecPhone:""};
@@ -958,7 +980,10 @@ function calSheet(){const st={};ICS_G.forEach(g=>st[g[0]]=g[3]);
 const triHTML=(id,st,ds)=>`<div class="tri" role="group" aria-label="حالة المهمة">${[["done","نفذ",I.ok],["missed","لم ينفذ",I.x],["later","يؤجل",I.later]].map(([k,l,ic])=>`<button class="c3 ${k==="missed"?"miss":k} ${st===k?"on":""}" data-st="${k}" data-id="${id}" data-ds="${ds}" aria-label="${l}">${ic}</button>`).join("")}</div>`;
 function tasksBlock(ds,cats,title){const lg=V.log[ds]||{};const list=tasksFor(ds).filter(x=>cats.includes(x.cat));const dn=list.filter(x=>lg[x.id]==="done").length;
  return`<div class="sec">${H4(title,`${dn} من ${list.length}`)}<div class="card">${list.length?taskListHTML(list,lg,ds,false):`<div class="empty">ما فيه مهام اليوم</div>`}</div></div>`}
-function bindScreen(id,fn){$("#"+id).addEventListener("click",e=>{const c=e.target.closest("[data-st]");if(c){setTaskState(c.dataset.ds,c.dataset.id,c.dataset.st);RENDER[id]();return}fn(e)})}
+/* tri-state tap: light the circle (and strike the row) in this frame, rebuild the screen in the task after that paint */
+function markTri(c){const on=!c.classList.contains("on");for(const b of c.parentNode.children)b.classList.toggle("on",on&&b===c);const row=c.closest(".task");if(row)row.className=row.className.replace(/\bst-\S*/,"st-"+(on?c.dataset.st:""))}
+const afterPaint=fn=>requestAnimationFrame(()=>setTimeout(fn,0));
+function bindScreen(id,fn){$("#"+id).addEventListener("click",e=>{const c=e.target.closest("[data-st]");if(c){setTaskState(c.dataset.ds,c.dataset.id,c.dataset.st);markTri(c);afterPaint(()=>{if(V)RENDER[id]()});return}fn(e)})}
 const swHTML=(on,attrs,label)=>`<button class="switch ${on?"on":""}" ${attrs} role="switch" aria-checked="${!!on}" aria-label="${esc(label)}"></button>`;
 function bars(vals,goal,fmt=v=>v){const max=Math.max(goal||0,...vals.map(x=>x.v||0),1);
  return`<div style="display:flex;gap:6px;align-items:flex-end;height:78px;direction:rtl">${vals.map(x=>{const hp=x.v?Math.max(6,Math.round(100*x.v/max)):0;return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end"><span class="num" style="font-size:10px;color:var(--ink-3)">${x.v?fmt(x.v):""}</span><i style="display:block;width:100%;height:${hp}%;border-radius:4px;background:${x.today?"var(--hl)":"rgba(63,127,140,.35)"}"></i><span style="font-size:10px;color:var(--ink-3)">${x.lab}</span></div>`}).join("")}</div>`}
@@ -974,7 +999,8 @@ function prayerStats(){const now=new Date();let done=0,tot=0,streak=0,todayDone=
   if(i===0)todayDone=n;if(i<7){done+=n;tot+=5}if(counting){if(n===5)streak++;else if(i>0)counting=false}}
  return{done,tot,streak,todayPct:Math.round(100*todayDone/5)}}
 const OCC=[[1,1,"رأس السنة الهجرية"],[1,10,"يوم عاشوراء"],[9,1,"بداية رمضان"],[9,27,"ليلة 27 من رمضان"],[10,1,"عيد الفطر"],[12,9,"يوم عرفة"],[12,10,"عيد الأضحى"]];
-function occasions(){const out=[],t0=startOfDay(new Date());for(let i=0;i<=400&&out.length<5;i++){const d=addDays(t0,i),h=hij(d);const o=OCC.find(x=>x[0]===h.m&&x[1]===h.d);if(o)out.push({d,name:o[2],days:i})}return out}
+let OCCM=null;function occasions(){const k=ymd(new Date());if(!OCCM||OCCM.k!==k)OCCM={k,v:occasions0()};return OCCM.v}
+function occasions0(){const out=[],t0=startOfDay(new Date());for(let i=0;i<=400&&out.length<5;i++){const d=addDays(t0,i),h=hij(d);const o=OCC.find(x=>x[0]===h.m&&x[1]===h.d);if(o)out.push({d,name:o[2],days:i})}return out}
 const qibla=(lat,lng)=>{const p1=lat*D2R,p2=21.4225*D2R,dl=(39.8262-lng)*D2R;const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return(Math.atan2(y,x)*R2D+360)%360};
 const REL_TOG=[["عبادات يومية",[["adhkarM","أذكار الصباح بعد الفجر (أساسي)"],["adhkarE","أذكار المساء بعد العصر (أساسي)"],["ruqya","الرقية الشرعية (أساسي)"],["adhkarS","أذكار النوم بعد العشاء"],["duha","صلاة الضحى"],["rawatib","السنن الرواتب"],["witr","الوتر"],["qiyam","قيام الليل قبل الفجر"],["jumuah","الجمعة: سورة الكهف والصلاة على النبي"]]],
  ["الصيام",[["ramadan","صيام رمضان والتراويح تلقائياً"],["fastMT","الإثنين والخميس"],["fastWhite","الأيام البيض (13 و14 و15)"],["fastSpecial","عرفة وعاشوراء وتاسوعاء"]]]];
@@ -1145,9 +1171,13 @@ function taskListHTML(list,log,ds,full){const now=new Date(),isToday=ds===ymd(no
  const line=`<div class="nowline" aria-label="الوقت الآن"><i></i><span>الآن ${esc(fClock.format(now))}</span><i></i></div>`;
  for(const t of list){if(isToday&&!placed&&(t.time==null||t.time>nh)){out+=line;placed=true}out+=taskRow(t,log[t.id]||"",ds,full)}
  if(isToday&&!placed&&list.length)out+=line;return out}
-let liveSig="";
+let liveSig="",lastAct=0,ptrDown=0;
+["pointerdown","pointermove","touchmove","scroll","wheel"].forEach(t=>document.addEventListener(t,()=>{lastAct=Date.now()},{capture:true,passive:true}));
+document.addEventListener("pointerdown",()=>{ptrDown=Date.now()},{capture:true,passive:true});
+["pointerup","pointercancel"].forEach(t=>document.addEventListener(t,()=>{ptrDown=0;lastAct=Date.now()},{capture:true,passive:true}));
+function idleFor(ms){const n=Date.now();return n-lastAct>ms&&!(ptrDown&&n-ptrDown<8000)}
 function liveTick(){if(!V||document.hidden)return;const top=stack[stack.length-1];if(!["s-schedule","s-religion","s-health","s-home","s-dash","s-tasks"].includes(top))return;
- const el=$("#"+top);if((el._sp&&el._sp.raf)||$(".sheet-wrap")||document.activeElement?.matches?.("input,textarea,select"))return;
+ const el=$("#"+top);if((el._sp&&el._sp.raf)||!idleFor(1500)||$(".sheet-wrap")||document.activeElement?.matches?.("input,textarea,select"))return;
  const now=new Date();if(top==="s-schedule"&&viewDate!==ymd(now))return;
  const sig=top+ymd(now)+now.getHours()+":"+now.getMinutes();if(sig===liveSig)return;liveSig=sig;RENDER[top]()}
 setInterval(liveTick,10000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)liveTick()});
@@ -1335,7 +1365,7 @@ function jobSheet(j){const isNew=!j;const d={title:"",role:"",stage:"استكش�
  if(!isNew)confirmDel(sh,"jb-del",()=>{removeRecord(j.id);save()})}
 
 /* ───────── RECEIPTS & QUICK SPEND ───────── */
-function readImage(file,max=640,q=.5){return new Promise((res,rej)=>{const fr0=new FileReader();fr0.onerror=rej;fr0.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const r=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",q))};img.src=fr0.result};fr0.readAsDataURL(file)})}
+function readImage(file,max=640,q=.5){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),img=new Image();const fail=e=>{URL.revokeObjectURL(u);rej(e)};img.onerror=fail;img.onload=()=>{(img.decode?img.decode():Promise.resolve()).catch(()=>{}).then(()=>{const r=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",q))}).catch(fail)};img.src=u})}
 function receiptSheet(){let img="";const used=imgBytes();
  openSheet("فاتورة جديدة",`<div class="card pin" style="display:flex;flex-direction:column;gap:10px;align-items:center"><label class="btn" style="cursor:pointer">${I.plus}تصوير أو اختيار صورة<input id="rc-f" type="file" accept="image/*" capture="environment" hidden></label><img id="rc-img" alt="" style="max-width:100%;max-height:220px;border-radius:12px;display:none"><div class="help" style="padding:0">الصورة تُصغَّر وتُحفظ مشفرة داخل جهازك. اقرأ المبلغ من الفاتورة واكتبه، لأن التطبيق ما يتصل بالإنترنت ولا يقرأ الصور تلقائياً.</div></div>
   <div class="card">${inRow("rc-a","المبلغ","","ر.س")}${inRow("rc-t","المتجر أو البيان","","مثال: بقالة","text")}${fr("النوع",`<select id="rc-c">${opts(CAT.expense,"food")}</select>`)}${fr("التاريخ",`<input id="rc-d" type="date" value="${ymd(new Date())}">`)}</div>
@@ -1487,21 +1517,23 @@ $("#s-settings").addEventListener("change",e=>{if(e.target.id==="s-city"){V.sett
 $("#s-settings").addEventListener("click",async e=>{const b=e.target.closest("[data-s]");if(!b)return;const a=b.dataset.s;
  if(a==="pr"){V.settings.prayers=V.settings.prayers===false;save();RENDER["s-settings"]()}
  if(a==="lock")lockNow();
- if(a==="wipe"){if(b.dataset.sure){store.del(LS_V);store.del(LS_L);MEMBLOB=null;lockNow();toast("حُذفت كل البيانات")}else{b.dataset.sure="1";$("#wipe-t").textContent="اضغط مرة ثانية للحذف النهائي"}}
+ if(a==="wipe"){if(b.dataset.sure){discardSaves();store.del(LS_V);store.del(LS_L);MEMBLOB=null;lockNow();toast("حُذفت كل البيانات")}else{b.dataset.sure="1";$("#wipe-t").textContent="اضغط مرة ثانية للحذف النهائي"}}
  if(a==="sum"){const s=summaryMD("all");const sh=openSheet("ملخصي MD",`<textarea id="sm" class="mono" readonly style="min-height:260px;border:1px solid var(--line);border-radius:12px;background:var(--card)">${esc(s)}</textarea><button class="btn" id="smc">${I.copy}نسخ</button>`);$("#smc",sh.el).addEventListener("click",()=>copyText(s,$("#sm",sh.el)))}
- if(a==="backup"){const blob=await seal(V,KEY,SALT);const sh=openSheet("نسخة احتياطية",`<textarea id="bk" class="mono" readonly style="border:1px solid var(--line);border-radius:12px;background:var(--card);word-break:break-all">${esc(blob)}</textarea><button class="btn" id="bkc">${I.copy}نسخ</button><div class="help">احفظ النص في الملاحظات. ما ينفتح إلا برمز الدخول اللي كان وقت النسخ.</div>`);$("#bkc",sh.el).addEventListener("click",()=>copyText(blob,$("#bk",sh.el)))}
+ if(a==="backup"){const blob=await seal(V,KEY,SALT);const sh=openSheet("نسخة احتياطية",`<div class="mono" dir="ltr" style="border:1px solid var(--line);border-radius:12px;background:var(--card);padding:12px 14px;font-size:12px;line-height:1.6;word-break:break-all;color:var(--ink-2)">${esc(blob.slice(0,180))}…</div><div class="help" style="padding-top:0">الحجم ${Math.round(blob.length/1024)} كيلوبايت. زر النسخ ينسخ النص كاملاً.</div><textarea id="bk" class="mono" readonly hidden style="border:1px solid var(--line);border-radius:12px;background:var(--card);word-break:break-all"></textarea><button class="btn" id="bkc">${I.copy}نسخ</button><div class="help">احفظ النص في الملاحظات. ما ينفتح إلا برمز الدخول اللي كان وقت النسخ.</div>`);const bk=$("#bk",sh.el);bk.value=blob;$("#bkc",sh.el).addEventListener("click",()=>copyText(blob,bk))}
  if(a==="restore"){const sh=openSheet("استعادة",`<textarea id="rs" class="mono" placeholder="الصق النسخة الاحتياطية هنا" style="border:1px solid var(--line);border-radius:12px;background:var(--card)"></textarea><button class="btn" id="rsgo">استعادة وقفل</button><div class="help">بتحل النسخة محل البيانات الحالية، وبعدها تدخل برمز النسخة.</div>`);
-  $("#rsgo",sh.el).addEventListener("click",()=>{const v=$("#rs",sh.el).value.trim();try{const o=JSON.parse(v);if(!o.ct||!o.iv||!o.salt)throw 0;store.set(LS_V,v);MEMBLOB=v;sh.close();lockNow();toast("أدخل رمز النسخة")}catch(_){toast("النص غير صالح")}})}
+  $("#rsgo",sh.el).addEventListener("click",()=>{const v=$("#rs",sh.el).value.trim();try{const o=JSON.parse(v);if(!o.ct||!o.iv||!o.salt)throw 0;discardSaves();store.set(LS_V,v);MEMBLOB=v;sh.close();lockNow();toast("أدخل رمز النسخة")}catch(_){toast("النص غير صالح")}})}
  if(a==="code")changeCode();if(a==="cal")calSheet()});
 function changeCode(){const sh=openSheet("رمز جديد",`<div class="cstage" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:6px"></div>`,{onClose(){padState=null}});const host=$(".cstage",sh.el);
  sh.el.addEventListener("click",e=>{const k=e.target.closest("[data-k]");if(k)keyIn(k.dataset.k)});
  const first=()=>codeStage({host,title:"اختر الرمز الجديد",hint:"أرقام أو الرموز @ & # * .",onDone:c1=>codeStage({host,title:"أكّد الرمز الجديد",onDone:async c2=>{if(c1!==c2){fail("غير متطابق، أعد من البداية");setTimeout(first,600);return}
-  $(".hint",host).innerHTML=spin;SALT=crypto.getRandomValues(new Uint8Array(16));KEY=await deriveKey(c2,SALT);const blob=await seal(V,KEY,SALT);MEMBLOB=blob;store.set(LS_V,blob);padState=null;sh.close();toast("تم تغيير الرمز")}})});first()}
+  $(".hint",host).innerHTML=spin;const ns=crypto.getRandomValues(new Uint8Array(16)),nk=await deriveKey(c2,ns);if(!V)return;SALT=ns;KEY=nk;dirty=true;await flush(true);padState=null;sh.close();toast("تم تغيير الرمز")}})});first()}
 
-function refresh(){const top=stack[stack.length-1];if(top&&top!=="s-add")RENDER[top]?.()}
+/* the screen behind a sheet is rebuilt after the sheet has slid away, not inside the first frames of its close spring */
+let sheetsClosing=0,refreshDue=false;
+function refresh(){if(sheetsClosing){refreshDue=true;return}const top=stack[stack.length-1];if(top&&top!=="s-add")RENDER[top]?.()}
 const RENDER={"s-home":renderHome,"s-finance":renderFinance,"s-schedule":renderSchedule,"s-add":renderAdd,"s-religion":renderReligion,"s-health":renderHealth,"s-dash":renderDash,"s-tasks":renderTasks,"s-study":renderStudy,"s-brain":renderBrain,"s-settings":renderSettings};
 setInterval(()=>{const t=fClock.format(new Date());for(const id of["lclock","hclock"]){const e=document.getElementById(id);if(e&&e.textContent!==t)e.textContent=t}},5000);
-let hidAt=0;document.addEventListener("visibilitychange",()=>{if(document.hidden){if(V)hidAt=Date.now()}else if(V&&hidAt&&Date.now()-hidAt>300000)lockNow()});
+let hidAt=0;addEventListener("pagehide",()=>flush(true));document.addEventListener("visibilitychange",()=>{if(document.hidden){if(V)hidAt=Date.now();flush(true)}else if(V&&hidAt&&Date.now()-hidAt>300000)lockNow()});
 show("s-login");renderLogin();
 })();
 </script>
