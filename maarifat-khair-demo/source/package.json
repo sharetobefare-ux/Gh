@@ -1,0 +1,14 @@
+{
+  "name": "maarifat-khair",
+  "version": "1.0.0",
+  "private": true,
+  "description": "معرفة خير — منصة تعريف للزواج بإشراف موثوق وموافقة متبادلة (نسخة مرجعية تجريبية)",
+  "type": "commonjs",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/index.js --demo",
+    "start:prod": "node server/index.js",
+    "test": "node --test test/*.test.js",
+    "check": "node -e \"require('./server/seed').seed(require('./server/app').createApp()); console.log('ok')\""
+  }
+}
