@@ -38,6 +38,13 @@ function buildRouter(app) {
   add('GET', '/api/profiles/:id/data', (c) => app.readProfile(c.actor, c.params.id), { nostore: true });
   add('POST', '/api/profiles/:id/correction', (c) => app.correctProfile(c.actor, c.params.id, c.body));
   add('POST', '/api/profiles/:id/comparison', (c) => app.requestComparison(c.actor, c.params.id));
+  add('GET', '/api/browse', (c) => app.browseProfiles(c.actor, { gender: c.query.get('gender') || undefined, city: c.query.get('city') || undefined, state: c.query.get('state') || undefined }));
+  add('GET', '/api/browse/:id', (c) => app.browseProfile(c.actor, c.params.id));
+  add('POST', '/api/browse/:id/match', (c) => app.directMatch(c.actor, c.body.my_profile_id, c.params.id));
+  add('GET', '/api/profiles/:id/files', (c) => app.listFilesOf(c.actor, c.params.id));
+  add('POST', '/api/profiles/:id/files', (c) => app.addFile(c.actor, c.params.id, c.body));
+  add('GET', '/api/profiles/:id/files/:fid', (c) => app.readFile(c.actor, c.params.id, c.params.fid));
+  add('DELETE', '/api/profiles/:id/files/:fid', (c) => app.deleteFile(c.actor, c.params.id, c.params.fid));
   add('POST', '/api/profiles/:id/cancel', (c) => app.cancelProfile(c.actor, c.params.id, c.body));
   add('POST', '/api/profiles/:id/activate', (c) => app.activateProfile(c.actor, c.params.id));
   add('POST', '/api/profiles/:id/exemption', (c) => app.requestExemption(c.actor, c.params.id, c.body));

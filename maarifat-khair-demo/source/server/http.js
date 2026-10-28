@@ -31,7 +31,7 @@ function createHandler(app, webRoot, opts = {}) {
         if (!allow('g:' + ip, 600) || (sensitive && !allow('s:' + ip, 20))) return send(429, JSON.stringify({ error: 'RATE_LIMIT', message: 'طلبات كثيرة. حاول بعد قليل' }), { ...J, 'Retry-After': '60' });
         if (req.method !== 'GET' && !(req.headers['content-type'] || '').startsWith('application/json')) return send(415, JSON.stringify({ error: 'UNSUPPORTED_MEDIA_TYPE' }), J);
         let body = {};
-        if (req.method !== 'GET') { const chunks = []; let n = 0; for await (const ch of req) { n += ch.length; if (n > 100e3) return send(413, JSON.stringify({ error: 'TOO_LARGE' }), J); chunks.push(ch); } try { body = chunks.length ? JSON.parse(Buffer.concat(chunks)) : {}; } catch { return send(400, JSON.stringify({ error: 'BAD_JSON' }), J); } }
+        if (req.method !== 'GET') { const chunks = []; let n = 0; for await (const ch of req) { n += ch.length; if (n > 3e6) return send(413, JSON.stringify({ error: 'TOO_LARGE' }), J); chunks.push(ch); } try { body = chunks.length ? JSON.parse(Buffer.concat(chunks)) : {}; } catch { return send(400, JSON.stringify({ error: 'BAD_JSON' }), J); } }
         const r = await core({ method: req.method, pathname: url.pathname, query: url.searchParams, body, sid: cookies(req).mk_sid, headers: { 'x-mk': req.headers['x-mk'] } });
         const extra = {};
         if (r.setSid !== undefined) extra['Set-Cookie'] = `mk_sid=${r.setSid || ''}; HttpOnly; SameSite=Strict; Path=/; ${r.setSid ? 'Max-Age=28800' : 'Max-Age=0'}${process.env.MK_SECURE ? '; Secure' : ''}`;

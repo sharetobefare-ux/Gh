@@ -38,6 +38,7 @@ function hardCheck(A, B) {
   return unknown.length ? { unknown: [...new Set(unknown)] } : { ok: true };
 }
 
+const SOFT_DIM = { children: 'family', wants_children: 'family', timeline: 'family', marital_status: 'family', housing: 'place', partner_work: 'work', job_travel: 'work', smoking: 'lifestyle', polygamy_view: 'values' };
 /** fit لكل بُعد: متوسط المكونات المعروفة؛ null إن لم يكن أي مكون قابلًا للمقارنة */
 function dimFits(A, B) {
   const c = (cond, f) => (cond ? f() : null);
@@ -63,8 +64,11 @@ function dimFits(A, B) {
     c(A.langs?.length && B.langs?.length, () => (A.langs.some((x) => B.langs.includes(x)) ? 1 : 0)),
     c(A.values?.length && B.values?.length, () => Math.min(1, A.values.filter((x) => B.values.includes(x)).length / Math.min(A.values.length, B.values.length, 3))),
   ];
+  // تفضيلات مرنة: تطابقها يرفع درجة البُعد المعني، وعدمه يخفضها، ولا تستبعد أحدًا
+  const dims = { place, family, work, lifestyle, values };
+  for (const s of A.soft || []) { const v = B[s.field], d = SOFT_DIM[s.field]; if (d && !U(v)) dims[d].push(s.values.includes(v) ? 1 : 0); }
   const out = {};
-  for (const [k, comps] of Object.entries({ place, family, work, lifestyle, values })) out[k] = avg(comps.filter((x) => x !== null));
+  for (const [k, comps] of Object.entries(dims)) out[k] = avg(comps.filter((x) => x !== null));
   return out;
 }
 

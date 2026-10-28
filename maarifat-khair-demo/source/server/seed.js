@@ -45,13 +45,12 @@ function seed(app, { extra = true, scenario = false } = {}) {
   const ver = (cat) => ({ category: cat, checked_at: t0, expires_at: t0 + 365 * DAY, evidence_ref: 'demo' });
   const s1 = mk('sup1', 'supervisor', { display_name: 'أ. تجريبي (محامٍ)', category: 'lawyer', scope: ['الرياض', 'الدمام'], verification: ver('lawyer') });
   const s2 = mk('sup2', 'supervisor', { display_name: 'د. تجريبي (قاضٍ)', category: 'judge', scope: ['جدة'], verification: ver('judge') });
-  mk('sup3', 'supervisor', { display_name: 'م. تجريبي (عمدة)', category: 'mayor', scope: ['الخبر'], verification: ver('mayor') });
+  const s3 = mk('sup3', 'supervisor', { display_name: 'م. تجريبي (عمدة)', category: 'mayor', scope: ['الخبر'], verification: ver('mayor') });
   const tech = mk('tech1', 'tech', { display_name: 'المشرف التقني' });
   const act = (u) => { const sid = 'seed' + K.rid(6); app.db.sessions.set(sid, { uid: u.id, at: t0, last: t0, reauth: t0 }); return app.session(sid); };
-  const WEST = ['جدة', 'مكة المكرمة', 'الطائف', 'المدينة المنورة', 'ينبع'];
-  let n = 0; const files = {};
+  let n = 0; const files = {}; const sups = [s1, s2, s3];
   for (const person of extra ? [...PEOPLE, ...GENERATED] : PEOPLE) {
-    const sup = WEST.includes(person.M.city) && person !== PEOPLE[0] ? s2 : s1;
+    const sup = person === PEOPLE[0] ? s1 : sups[n % 3]; // توزيع على المشرفين الثلاثة لتظهر المطابقة بين مشرفين مختلفين
     const d = app.createDraft(act(sup), base(person)); files[person.name] = d.id;
     app.submitProfile(act(sup), d.id, { consent_attested: true, consent_ref: 'نموذج-ورقي-' + (100 + ++n) });
   }

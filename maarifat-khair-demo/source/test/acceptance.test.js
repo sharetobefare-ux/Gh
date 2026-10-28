@@ -21,6 +21,19 @@ test('شرط صلب فاشل يستبعد ولو الدرجة عالية؛ ال�
   assert.equal(E.evaluatePair(A, { ...B, pref_age_max: 25 }).status, 'EXCLUDED'); // الاتجاه المعاكس
   assert.equal(E.evaluatePair({ ...A, hard: [{ field: 'job_travel', values: ['no'] }] }, { ...B, job_travel: undefined }).status, 'NEEDS_CLARIFICATION');
 });
+test('تفضيل مرن: يرفع الدرجة عند التطابق ويخفضها عند عدمه، ولا يستبعد أحدًا؛ ولا يُقبل حقل صلبًا ومرنًا معًا', () => {
+  const Q = require('../server/questionnaire');
+  const A = { ...PEOPLE[0].M, age: 30, hard: [] }, B = { ...PEOPLE[3].M, age: 28, hard: [] };
+  const base = E.evaluatePair(A, B);
+  const match = E.evaluatePair({ ...A, soft: [{ field: 'smoking', values: [B.smoking] }] }, B);
+  const miss = E.evaluatePair({ ...A, soft: [{ field: 'smoking', values: [B.smoking === 'no' ? 'yes' : 'no'] }] }, B);
+  assert.equal(match.status, 'ELIGIBLE'); assert.equal(miss.status, 'ELIGIBLE'); // لا استبعاد
+  assert.ok(match.mutual >= base.mutual && miss.mutual <= base.mutual);
+  const v = Q.validate({ I: {}, S: {}, C: {}, M: { hard: [{ field: 'smoking', values: ['no'] }], soft: [{ field: 'smoking', values: ['no'] }] } });
+  assert.ok(v.errors.soft);
+  assert.ok(Q.validate({ I: {}, S: {}, C: {}, M: { hard: [{ field: 'smoking', values: ['maybe'] }] } }).errors.hard); // قيمة من خارج القائمة
+  assert.ok(Q.validate({ I: {}, S: {}, C: {}, M: { hard: [{ field: 'smoking', values: ['no'] }, { field: 'smoking', values: ['yes'] }] } }).errors.hard); // تكرار الحقل
+});
 test('الحد الأقصى 3 ولا حشو بغير المؤهلين', () => {
   const load = new Map(); const c = (a, b, m) => ({ a, b, mutual: m, exposure: { a: 0, b: 0 }, waitDays: { a: 0, b: 0 }, tie: a + b });
   const ch = E.select([c('a', 'x1', 90), c('a', 'x2', 89), c('a', 'x3', 88), c('a', 'x4', 87)], load);

@@ -39,7 +39,13 @@ MK.api = async function api(method, url, body) {
   return data;
 };
 MK.get = (u) => MK.api('GET', u); MK.post = (u, b) => MK.api('POST', u, b || {}); MK.patch = (u, b) => MK.api('PATCH', u, b);
-MK.toast = (msg, bad) => { const t = h('div', { class: 'toast' + (bad ? ' bad' : ''), role: bad ? 'alert' : 'status' }, msg); document.body.append(t); setTimeout(() => t.remove(), 4500); };
+MK.toast = (msg, bad) => { document.querySelectorAll('.toast').forEach((x) => x.remove()); const t = h('div', { class: 'toast' + (bad ? ' bad' : ''), role: bad ? 'alert' : 'status' }, h('span', null, msg), h('button', { type: 'button', class: 'toast-x', 'aria-label': 'إغلاق', onclick: () => t.remove() }, '✕')); document.body.append(t); setTimeout(() => t.remove(), bad ? 9000 : 6000); };
+// حجم الخط: تفضيل لكل جهاز (عادي / كبير / أكبر) لتسهيل القراءة لكبار السن
+MK.TEXT_SIZES = [['normal', 'عادي'], ['large', 'كبير'], ['xl', 'أكبر']];
+MK.getText = () => { try { return localStorage.getItem('mk_text') || 'normal'; } catch { return 'normal'; } };
+MK.setText = (v) => { try { localStorage.setItem('mk_text', v); } catch {} document.documentElement.dataset.text = v; };
+MK.setText(MK.getText());
+MK.textControl = () => h('div', { class: 'textsize', role: 'group', 'aria-label': 'حجم الخط' }, h('span', null, 'حجم الخط'), h('div', { class: 'seg' }, MK.TEXT_SIZES.map(([v, l]) => h('label', { class: 'seg-o' }, h('input', { type: 'radio', name: 'txt', value: v, checked: MK.getText() === v, onchange: () => MK.setText(v) }), l))));
 MK.fail = (e) => { if (!e.silent && e.status !== 401) MK.toast(e.message || 'حدث خطأ', true); };
 MK.nav = (p) => { if (location.hash === '#' + p) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = p; };
 
@@ -75,7 +81,27 @@ Object.assign(MK.L, {
   DRAFT: 'مسودة', ACTIVE: 'نشط', FROZEN: 'مجمّد', DELETED: 'ملغى',
   PROPOSED: 'طلب مقارنة جديد', INTEREST_ONE_SIDE: 'اهتمام من جانب', MUTUAL_INTEREST: 'اهتمام الطرفين', CONTACTED: 'تم التواصل', DECLINED: 'لم يستمر', EXPIRED: 'منتهٍ', REVOKED: 'مُبطل',
   interested: 'مناسب', not_interested: 'غير مناسب', later: 'لاحقًا',
-  intake: 'إضافة الطلبات وإدارة الملفات', matches: 'طلبات المقارنة', contact: 'تم التواصل وتفعيل الملفات', cancel: 'إلغاء حسابات المستفيدين', exempt: 'طلب استثناء مدة التجميد', support: 'الدعم الفني',
+  intake: 'إضافة الطلبات وإدارة الملفات', browse: 'الاطلاع على ملفات المشرفين', matches: 'طلبات المقارنة', contact: 'تم التواصل وتفعيل الملفات', cancel: 'إلغاء حسابات المستفيدين', exempt: 'طلب استثناء مدة التجميد', support: 'الدعم الفني',
   login: 'تسجيل الدخول', page_error: 'خطأ في صفحة', matching: 'المطابقة والمقارنة', data: 'البيانات', permissions: 'الصلاحيات', security: 'أمني', other: 'أخرى',
   open: 'مفتوح', in_progress: 'قيد المعالجة', resolved: 'تم الحل', pending: 'بانتظار القرار', approved: 'مقبول', rejected: 'مرفوض', active: 'نشط', suspended: 'معلّق',
 });
+
+// ---------- حركة: نابض فيزيائي قابل للمقاطعة (يبدأ من القيمة الحالية ويرث السرعة) ----------
+MK.reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+MK.spring = function (apply, opt = {}) {
+  const k = opt.stiffness ?? 420, ratio = opt.ratio ?? 1, c = 2 * Math.sqrt(k) * ratio; // ratio 1 = حرج بلا ارتداد
+  let x = 0, v = 0, target = 0, raf = 0, last = 0, done = null;
+  const step = (t) => { let dt = (t - last) / 1000; last = t; if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
+    for (let i = 0, n = Math.ceil(dt / 0.004); i < n; i++) { const h = dt / n; v += (-k * (x - target) - c * v) * h; x += v * h; }
+    if (Math.abs(v) < 2 && Math.abs(x - target) < 0.5) { x = target; v = 0; apply(x); raf = 0; const d = done; done = null; d && d(); return; }
+    apply(x); raf = requestAnimationFrame(step); };
+  return {
+    get x() { return x; }, get v() { return v; }, get active() { return !!raf; },
+    set(val) { this.stop(); x = val; v = 0; apply(x); },
+    to(t, v0, cb) { target = t; if (v0 !== undefined) v = v0; done = cb || null; if (MK.reducedMotion()) { this.stop(); x = t; v = 0; apply(x); cb && cb(); return; } if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); } },
+    stop() { if (raf) cancelAnimationFrame(raf); raf = 0; },
+  };
+};
+// إسقاط الزخم: أين سيستقر العنصر لو تُرك بسرعته الحالية (نفس دالة iOS)
+MK.project = (v, rate = 0.998) => ((v / 1000) * rate) / (1 - rate);
+MK.rubberband = (over, dim, c = 0.55) => (over * dim * c) / (dim + c * Math.abs(over));
