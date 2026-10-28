@@ -40,7 +40,8 @@ const FIELDS = {
   pref_age_max:   { id: 'H01', layer: 'M', phase: 'E', type: 'int', min: 18, max: 90, label: 'أعلى عمر مقبول' },
   pref_cities:    { id: 'H02', layer: 'M', phase: 'E', type: 'multi', values: CITIES, label: 'المدن المقبولة' },
   pref_marital:   { id: 'H03', layer: 'M', phase: 'E', type: 'multi', values: ['never_married', 'divorced', 'widowed'], label: 'الحالات الاجتماعية المقبولة' },
-  hard:           { id: 'H05', layer: 'M', phase: 'O', type: 'hard', label: 'شروط ضرورية (حتى خمسة)' },
+  hard:           { id: 'H05', layer: 'M', phase: 'O', type: 'hard', max: 5, label: 'شروط صلبة (حتى خمسة)' },
+  soft:           { id: 'H06', layer: 'M', phase: 'O', type: 'hard', max: 9, label: 'تفضيلات مرنة' },
   importance:     { id: 'H04', layer: 'M', phase: 'O', type: 'importance', label: 'أهمية الأبعاد' },
   // C — بطاقة
   bio:            { id: 'B07', layer: 'C', phase: 'O', type: 'text', max: 500, label: 'نبذة بلا معرفات' },
@@ -67,7 +68,7 @@ function checkValue(k, f, v) {
     case 'date': return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? null : 'تاريخ غير صالح';
     case 'phone': return /^\+?\d{9,15}$/.test(String(v).replace(/[\s-]/g, '')) ? null : 'رقم غير صالح';
     case 'multi': return Array.isArray(v) && v.every((x) => f.values.includes(x)) && (!f.max || v.length <= f.max) ? null : 'قائمة غير صالحة';
-    case 'hard': return Array.isArray(v) && v.length <= 5 && v.every((h) => HARD_ALLOWED.includes(h.field) && Array.isArray(h.values) && h.values.length && h.values.every((x) => typeof x === 'string')) ? null : 'شروط غير صالحة (حتى 5 من الحقول المسموحة)';
+    case 'hard': return Array.isArray(v) && v.length <= f.max && new Set(v.map((h) => h && h.field)).size === v.length && v.every((h) => HARD_ALLOWED.includes(h.field) && Array.isArray(h.values) && h.values.length && h.values.every((x) => typeof x === 'string' && (FIELDS[h.field].values || []).includes(x))) ? null : `شروط غير صالحة (حتى ${f.max} من الحقول المسموحة، وقيمة واحدة على الأقل لكل شرط)`;
     case 'importance': return v && typeof v === 'object' && Object.entries(v).every(([d, w]) => DIMENSIONS.includes(d) && ['high', 'normal', 'low'].includes(w)) ? null : 'أهمية غير صالحة';
   }
   return 'نوع غير معروف';
@@ -86,6 +87,7 @@ function validate(draft, now = Date.now()) {
   const M = draft?.M || {};
   if (M.pref_age_min && M.pref_age_max && M.pref_age_min > M.pref_age_max) errors.pref_age_min = 'الحد الأدنى أكبر من الأعلى';
   if (M.city && Array.isArray(M.pref_cities) && !M.pref_cities.length) errors.pref_cities = 'اختر مدينة واحدة على الأقل';
+  if (Array.isArray(M.hard) && Array.isArray(M.soft) && M.soft.some((x) => M.hard.some((y) => y && x && y.field === x.field))) errors.soft = 'لا يكون المعيار صلبًا ومرنًا معًا';
   let age = null;
   if (draft?.I?.dob && !errors.dob) { age = ageOn(draft.I.dob, now); if (age < 18) errors.dob = 'الأهلية: 18 سنة فأكثر'; }
   return { errors, missing, age, completeness: Math.round(100 * (1 - missing.length / Object.values(FIELDS).filter((f) => f.phase === 'E').length)) };

@@ -47,7 +47,7 @@ test('HTTP: رؤوس الأمان، CSRF، نوع المحتوى، حجم الج
     assert.equal((await req(port, 'POST', '/api/auth/login', { body: { name: 'x', code: 'y' } })).status, 403); // لا X-MK
     assert.equal((await req(port, 'POST', '/api/auth/login', { headers: { 'X-MK': '1', 'Content-Type': 'text/plain' }, raw: 'x' })).status, 415);
     assert.equal((await req(port, 'POST', '/api/auth/login', { headers: { 'X-MK': '1' }, raw: '{bad' })).status, 400);
-    const big = await req(port, 'POST', '/api/auth/login', { headers: { 'X-MK': '1' }, raw: JSON.stringify({ x: 'a'.repeat(200000) }) }).catch((e) => ({ status: e.code === 'ECONNRESET' || e.code === 'EPIPE' ? 413 : 0 })); assert.equal(big.status, 413);
+    const big = await req(port, 'POST', '/api/auth/login', { headers: { 'X-MK': '1' }, raw: JSON.stringify({ x: 'a'.repeat(3100000) }) }).catch((e) => ({ status: e.code === 'ECONNRESET' || e.code === 'EPIPE' ? 413 : 0 })); assert.equal(big.status, 413);
     for (const p of ['/api/sup/home', '/api/admin/overview', '/api/matches', '/api/schema', '/api/audit', '/api/frozen']) assert.equal((await req(port, 'GET', p)).status, 401, p);
     assert.equal((await req(port, 'GET', '/api/demo/accounts')).status, 200); // demo=true في الاختبار فقط
   } finally { s.close(); }

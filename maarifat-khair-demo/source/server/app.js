@@ -15,7 +15,7 @@ const LIVE_PAIR = ['PROPOSED', 'INTEREST_ONE_SIDE', 'MUTUAL_INTEREST'];
 const TERMINAL_PAIR = ['DECLINED', 'EXPIRED', 'REVOKED', 'CONTACTED'];
 const FREEZE_DAYS = 7;
 // صلاحيات الصفحات. يمنحها المشرف الأول أو يسحبها. المشرف التقني له الدعم الفني فقط.
-const SUP_PERMS = ['intake', 'matches', 'contact', 'cancel', 'exempt', 'support'];
+const SUP_PERMS = ['intake', 'matches', 'contact', 'cancel', 'exempt', 'browse', 'support'];
 const DEFAULT_PERMS = { supervisor: SUP_PERMS, tech: ['support'], super_admin: [] };
 const TICKET_CLASSES = ['login', 'page_error', 'matching', 'data', 'permissions', 'security', 'other'];
 const TICKET_STATES = ['open', 'in_progress', 'resolved'];
@@ -25,7 +25,7 @@ function createApp(opts = {}) {
   const now = () => clock.now();
   const kms = opts.kms || new K.SimKMS();
   const cfg = { demo: opts.demo ?? false, sessionIdleMs: 30 * 60e3, sessionMaxMs: 8 * 3600e3, reauthMs: 5 * 60e3, draftMs: 14 * DAY, cardMs: M.RULES.cardTtlDays * DAY, freezeMs: FREEZE_DAYS * DAY, reviewMs: 90 * DAY, minCell: opts.minCell ?? 5, previewPerHour: 30, matchCooldownMs: 60e3 };
-  const db = { users: new Map(), sessions: new Map(), profiles: new Map(), sections: new Map(), drafts: new Map(), consents: [], receipts: new Map(), pairs: new Map(), cards: new Map(), suppress: new Set(), roleReqs: new Map(), exemptions: new Map(), tickets: new Map(), audit: [], runs: [], attempts: new Map(), previews: new Map(), lastMatch: new Map(), tombstones: new Set(), deletionJobs: [], suggestions: [], demoCreds: [] };
+  const db = { users: new Map(), sessions: new Map(), profiles: new Map(), sections: new Map(), drafts: new Map(), consents: [], receipts: new Map(), pairs: new Map(), cards: new Map(), suppress: new Set(), roleReqs: new Map(), exemptions: new Map(), tickets: new Map(), audit: [], runs: [], attempts: new Map(), previews: new Map(), lastMatch: new Map(), tombstones: new Set(), deletionJobs: [], suggestions: [], demoCreds: [], files: new Map() };
 
   // ---------- تدقيق (سلسلة تجزئة؛ لا محتوى ولا أسماء ولا هواتف) ----------
   function audit(actor, action, resource, purpose, outcome = 'ok') {
@@ -154,6 +154,15 @@ function createApp(opts = {}) {
 
   // ---------- المطابقة ----------
   function activeLoad() { const m = new Map(); for (const x of db.pairs.values()) if (LIVE_PAIR.includes(x.state)) { m.set(x.a, (m.get(x.a) || 0) + 1); m.set(x.b, (m.get(x.b) || 0) + 1); } return m; }
+  /** إنشاء اقتراح (زوج) ببطاقتين مشفّرتين، سواء من الدورة الآلية أو من مطابقة مباشرة */
+  function createPair(A, B, ev, runId) {
+    const id = M.canonicalPairId(A.p.id, B.p.id);
+    const pair = { id, a: A.p.id, b: B.p.id, state: 'PROPOSED', profile_versions: { [A.p.id]: A.p.version, [B.p.id]: B.p.version }, created_at: now(), expires_at: now() + cfg.cardMs, decisions: {}, later: {}, channels: {}, rules: M.RULES.version, run: runId,
+      score_enc: K.seal(kms, 'kek:pairs', { profile_id: id, section: 'SCORE', schema_version: '1.0', record_version: 1, purpose: 'explain' }, { mutual: ev.mutual, coverage: ev.coverage, ab: ev.ab.score, ba: ev.ba.score }) };
+    db.pairs.set(id, pair);
+    for (const [viewer, other, fits] of [[A, B, ev.ab.fits], [B, A, ev.ba.fits]]) db.cards.set(`${id}:${viewer.p.id}`, K.seal(kms, 'kek:pairs', { profile_id: id, section: 'CARD:' + viewer.p.id, schema_version: '1.0', record_version: 1, purpose: 'card' }, buildCard(other, fits)));
+    A.p.exposure++; B.p.exposure++; return pair;
+  }
   function runMatching(trigger = 'manual') {
     const run = { id: 'run_' + K.rid(6), at: now(), rules: M.RULES.version, trigger, seed: K.rid(8), stats: {} }; db.runs.push(run);
     const caller = 'svc:matcher:' + run.id, ps = [...db.profiles.values()].filter((p) => p.state === 'ACTIVE' && !(p.review_due_at && p.review_due_at < now()));
@@ -171,12 +180,7 @@ function createApp(opts = {}) {
     for (const c of M.select(cands, load)) {
       const A = data.get(c.a), B = data.get(c.b);
       if (A.p.state !== 'ACTIVE' || B.p.state !== 'ACTIVE') continue; // إعادة فحص قبل الحجز
-      const id = M.canonicalPairId(c.a, c.b);
-      const pair = { id, a: c.a, b: c.b, state: 'PROPOSED', profile_versions: { [c.a]: A.p.version, [c.b]: B.p.version }, created_at: now(), expires_at: now() + cfg.cardMs, decisions: {}, later: {}, channels: {}, rules: M.RULES.version, run: run.id,
-        score_enc: K.seal(kms, 'kek:pairs', { profile_id: id, section: 'SCORE', schema_version: '1.0', record_version: 1, purpose: 'explain' }, { mutual: c.mutual, coverage: c.coverage, ab: c.ev.ab.score, ba: c.ev.ba.score }) };
-      db.pairs.set(id, pair);
-      for (const [viewer, other, fits] of [[A, B, c.ev.ab.fits], [B, A, c.ev.ba.fits]]) db.cards.set(`${id}:${viewer.p.id}`, K.seal(kms, 'kek:pairs', { profile_id: id, section: 'CARD:' + viewer.p.id, schema_version: '1.0', record_version: 1, purpose: 'card' }, buildCard(other, fits)));
-      A.p.exposure++; B.p.exposure++; stats.created++; stats._sum = (stats._sum || 0) + c.mutual;
+      createPair(A, B, c.ev, run.id); stats.created++; stats._sum = (stats._sum || 0) + c.mutual;
     }
     if (stats.created) stats.avg_mutual = Math.round(10 * stats._sum / stats.created) / 10; delete stats._sum; stats.rules_version = M.RULES.version; stats.thresholds = { coverage: M.RULES.minCoverage, mutual: M.RULES.minMutual }; run.ms = now() - t0; if (db.runs.length > 50) db.runs.shift();
     for (const p of ps) db.lastMatch.set(p.id, now());
@@ -207,7 +211,10 @@ function createApp(opts = {}) {
         const other = x.a === mine.id ? x.b : x.a, op = db.profiles.get(other);
         if (!valid(x)) { x.state = 'REVOKED'; x.revoked_reason = 'invalid'; continue; }
         const card = K.open(kms, db.cards.get(`${x.id}:${mine.id}`), 'svc:card-gateway', 'card-view');
-        const row = { pair_id: x.id, profile_id: mine.id, profile_code: mine.code, state: x.state, my_decision: x.decisions[mine.id] || (x.later[mine.id] ? 'later' : null), other_decided: !!x.decisions[other], expires_at: x.expires_at, card };
+        // التوافق يظهر للطرفين معًا ودفعة واحدة: الدرجة المتبادلة، ودرجة كل اتجاه، والتغطية
+        const sc = K.open(kms, x.score_enc, 'svc:card-gateway', 'explain'); const fromMe = x.a === mine.id;
+        const compat = { mutual: Math.round(sc.mutual), mine: Math.round(fromMe ? sc.ab : sc.ba), theirs: Math.round(fromMe ? sc.ba : sc.ab), coverage: Math.round(sc.coverage * 100) };
+        const row = { pair_id: x.id, profile_id: mine.id, profile_code: mine.code, state: x.state, my_decision: x.decisions[mine.id] || (x.later[mine.id] ? 'later' : null), other_decided: !!x.decisions[other], expires_at: x.expires_at, card, compat };
         if (x.state === 'MUTUAL_INTEREST') { const os = db.users.get(op.supervisor_id); row.other_supervisor = os ? { name: os.display_name, category: os.category, channel: x.channels[other] || null } : null; }
         out.push(row);
       }
@@ -271,6 +278,7 @@ function createApp(opts = {}) {
   function purgeProfile(p) {
     revokePairsOf(p.id, 'cancel'); db.drafts.delete(p.id);
     for (const L of ['I', 'M', 'S', 'C']) { db.sections.delete(`${p.id}:${L}`); kms.destroy(`kek:${p.id}:${L}`); } // إتلاف تشفيري فعلي
+    for (const [fid, f] of db.files) if (f.profile_id === p.id) db.files.delete(fid); kms.destroy(`kek:${p.id}:F`);
     for (const x of db.pairs.values()) if (x.a === p.id || x.b === p.id) for (const k of [`${x.id}:${x.a}`, `${x.id}:${x.b}`]) db.cards.delete(k);
     for (const c of db.consents) if (c.subject === p.id && !c.withdrawn_at) c.withdrawn_at = now();
     db.tombstones.add(p.id); // يُعاد تطبيقه قبل فتح نظام مستعاد من نسخة احتياطية
@@ -330,6 +338,80 @@ function createApp(opts = {}) {
       missing_for_accuracy: ['age', 'city', 'marital_status'].filter((k) => m[k] === undefined && !(k === 'age' && m.age !== undefined)), capacity: M.RULES.capacity, note: `أعداد تقريبية من الملفات النشطة؛ الخلايا الأقل من ${cfg.minCell} محجوبة. لا تُعرض هوية أحد.` };
     audit(actor, 'options.preview', null, 'preview'); return res;
   }
+
+  // ---------- الاطلاع على ملفات المشرفين (صلاحية browse) والمطابقة المباشرة ----------
+  // تُعرض طبقة التوافق (M) والبطاقة واسم المشرف، ولا تُعرض الهوية (الاسم/الهاتف/تاريخ الميلاد) لغير المشرف صاحب الملف.
+  const BROWSE_FIELDS = ['gender', 'age', 'city', 'marital_status', 'children', 'timeline', 'housing', 'wants_children', 'accepts_partner_children', 'polygamy_view', 'partner_work', 'education', 'works', 'work_field', 'travel', 'job_travel', 'smoking', 'smoking_ok', 'social_style', 'langs', 'values', 'pref_age_min', 'pref_age_max', 'pref_cities', 'pref_marital', 'hard', 'soft', 'importance'];
+  function browseProfiles(actor, { gender, city, state } = {}) {
+    needPerm(actor, 'browse'); const caller = 'svc:browse', out = [];
+    for (const p of db.profiles.values()) {
+      if (!['ACTIVE', 'FROZEN'].includes(p.state) || (state && p.state !== state)) continue;
+      const m = openSection(p, 'M', caller, 'browse'); if ((gender && m.gender !== gender) || (city && m.city !== city)) continue;
+      const sup = db.users.get(p.supervisor_id);
+      out.push({ id: p.id, code: p.code, state: p.state, mine: p.supervisor_id === actor.id, supervisor: sup ? { id: sup.id, name: sup.display_name, category: sup.category } : null, updated_at: p.updated_at, exposure: p.exposure,
+        gender: m.gender, age_range: Q.ageRange(m.age), city: m.city, region: Q.REGION[m.city], marital_status: m.marital_status, children: m.children, timeline: m.timeline, housing: m.housing, wants_children: m.wants_children, education: m.education, hard_count: (m.hard || []).length });
+    }
+    audit(actor, 'profile.browse', null, 'browse'); return out.sort((a, b) => b.updated_at - a.updated_at);
+  }
+  function browseProfile(actor, id) {
+    needPerm(actor, 'browse'); const p = db.profiles.get(id); if (!p || !['ACTIVE', 'FROZEN'].includes(p.state)) throw notFound();
+    const m = openSection(p, 'M', 'svc:browse', 'browse'), c = openSection(p, 'C', 'svc:browse', 'browse'), sup = db.users.get(p.supervisor_id);
+    const data = Object.fromEntries(BROWSE_FIELDS.filter((k) => m[k] !== undefined).map((k) => [k, k === 'age' ? Q.ageRange(m.age) : m[k]]));
+    audit(actor, 'profile.view', p.id, 'browse');
+    return { id: p.id, code: p.code, state: p.state, version: p.version, mine: p.supervisor_id === actor.id, supervisor: sup ? { id: sup.id, name: sup.display_name, category: sup.category } : null, data, bio: c.bio || null, card_fields: c.card_fields || [], updated_at: p.updated_at };
+  }
+  /** مطابقة مباشرة: ملفي × ملف مشرف آخر. يعيد نتيجة المحرك، وينشئ الاقتراح للطرفين إن كان مؤهلًا */
+  function directMatch(actor, myId, otherId) {
+    needPerm(actor, 'browse'); needPerm(actor, 'matches');
+    const mine = ownFile(actor, myId, 'ACTIVE'); const other = db.profiles.get(otherId);
+    if (!other || other.state !== 'ACTIVE' || other.id === mine.id) throw E(422, 'NOT_ACTIVE', 'الملف الآخر ليس نشطًا');
+    const pid = M.canonicalPairId(mine.id, other.id), old = db.pairs.get(pid);
+    if (db.suppress.has(pid)) return { status: 'SUPPRESSED', message: 'سبق رفض هذا الاقتراح من أحد الطرفين ولا يُعاد' };
+    if (old && LIVE_PAIR.includes(old.state)) return { status: 'EXISTS', message: 'يوجد اقتراح قائم بين الملفين في طلبات المقارنة', pair_id: pid };
+    if (old && !(old.state === 'EXPIRED' || (old.state === 'REVOKED' && ['correction', 'contact'].includes(old.revoked_reason)))) return { status: 'CLOSED', message: 'أُغلق هذا الاقتراح سابقًا (' + t(old.state) + ')' };
+    const caller = 'svc:direct-match', A = { p: mine, M: openSection(mine, 'M', caller, 'match-direct'), C: openSection(mine, 'C', caller, 'match-direct') }, B = { p: other, M: openSection(other, 'M', caller, 'match-direct'), C: openSection(other, 'C', caller, 'match-direct') };
+    if (A.M.gender === B.M.gender) return { status: 'EXCLUDED', why: 'gender', message: 'الملفان من الجنس نفسه' };
+    const ev = M.evaluatePair(A.M, B.M); const res = { status: ev.status };
+    if (ev.status === 'EXCLUDED') { const h1 = M.hardCheck(A.M, B.M); res.why = ev.why; res.side = h1.ok === false ? 'mine' : 'theirs'; res.message = (res.side === 'mine' ? 'استبعده شرط ملفك: ' : 'استبعده شرط الملف الآخر: ') + (WHY_AR[ev.why] || ev.why); }
+    else if (ev.status === 'NEEDS_CLARIFICATION') { res.unknown = ev.unknown; res.message = 'يحتاج إيضاحًا: بيانات ناقصة في ' + ev.unknown.map((k) => WHY_AR[k] || k).join('، '); }
+    else if (ev.status === 'INSUFFICIENT') res.message = 'تغطية البيانات أقل من الحد (60%)؛ أكمل الحقول الاختيارية';
+    else if (ev.status === 'BELOW_THRESHOLD') { res.mutual = Math.round(ev.mutual); res.message = `التوافق المتبادل ${res.mutual} أقل من العتبة 70`; }
+    else {
+      const load = activeLoad(); res.mutual = Math.round(ev.mutual); res.mine = Math.round(ev.ab.score); res.theirs = Math.round(ev.ba.score); res.coverage = Math.round(ev.coverage * 100);
+      if ((load.get(mine.id) || 0) >= M.RULES.capacity) { res.status = 'CAPACITY'; res.message = `ملفك لديه ${M.RULES.capacity} اقتراحات قائمة؛ اتخذ قرارًا في أحدها أولًا`; }
+      else if ((load.get(other.id) || 0) >= M.RULES.capacity) { res.status = 'CAPACITY'; res.message = 'سعة الملف الآخر ممتلئة الآن؛ أعد المحاولة لاحقًا'; }
+      else { createPair(A, B, ev, 'direct:' + K.rid(4)); res.pair_id = pid; res.message = `أُنشئ الاقتراح (توافق ${res.mutual}) وظهر في طلبات المقارنة لدى الطرفين`; }
+    }
+    audit(actor, 'match.direct', pid, res.status); return res;
+  }
+  const WHY_AR = { gender: 'الجنس', age: 'العمر', city: 'المدينة', marital: 'الحالة الاجتماعية', marital_status: 'الحالة الاجتماعية', children: 'الأبناء', smoking: 'التدخين', wants_children: 'الإنجاب', housing: 'السكن', partner_work: 'العمل', job_travel: 'تنقل العمل', timeline: 'التوقيت', polygamy_view: 'التعدد' };
+  const t = (v) => ({ DECLINED: 'لم يستمر', CONTACTED: 'تم التواصل', REVOKED: 'مُبطل' }[v] || v);
+
+  // ---------- المرفقات: مستندات وصور للملف (طبقة خاصة، للمشرف صاحب الملف فقط، لا تدخل المقارنة) ----------
+  const FILE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+  const FILE_MAX = 2 * 1024 * 1024, FILES_PER_PROFILE = 6;
+  const ownAnyFile = (actor, id) => { needPerm(actor, 'intake'); const p = ownFile(actor, id); if (p.state === 'DELETED') throw notFound(); return p; };
+  function addFile(actor, id, { name, type, data, label } = {}) {
+    const p = ownAnyFile(actor, id);
+    if (!FILE_TYPES[type]) throw E(422, 'BAD_TYPE', 'الأنواع المسموحة: PDF وصور JPG/PNG/WebP', { fields: ['type'] });
+    if (typeof data !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(data)) throw E(422, 'BAD_DATA', 'محتوى الملف غير صالح');
+    const bytes = Buffer.from(data, 'base64'); if (!bytes.length || bytes.length > FILE_MAX) throw E(422, 'TOO_LARGE', 'الحد الأقصى 2 م.ب لكل ملف');
+    const magic = bytes.subarray(0, 4).toString('hex');
+    const okMagic = (type === 'application/pdf' && bytes.subarray(0, 4).toString() === '%PDF') || (type === 'image/png' && magic === '89504e47') || (type === 'image/jpeg' && magic.startsWith('ffd8ff')) || (type === 'image/webp' && bytes.subarray(8, 12).toString() === 'WEBP');
+    if (!okMagic) throw E(422, 'BAD_TYPE', 'محتوى الملف لا يطابق نوعه');
+    if ([...db.files.values()].filter((f) => f.profile_id === p.id).length >= FILES_PER_PROFILE) throw E(422, 'LIMIT', `الحد الأقصى ${FILES_PER_PROFILE} مرفقات لكل ملف`);
+    const fid = 'f_' + K.rid(8), safeName = Q.maskPII(String(name || 'ملف').replace(/[\/:*?"<>|]/g, '').slice(0, 60)) || 'ملف';
+    const rec = K.seal(kms, `kek:${p.id}:F`, { profile_id: p.id, section: 'F:' + fid, schema_version: '1.0', record_version: 1, purpose: 'attachment' }, { data });
+    db.files.set(fid, { id: fid, profile_id: p.id, name: safeName, type, size: bytes.length, label: Q.maskPII(String(label || '')).slice(0, 40), at: now(), rec });
+    audit(actor, 'file.add', p.id, 'attachment'); return { id: fid, name: safeName, type, size: bytes.length, label: db.files.get(fid).label, at: db.files.get(fid).at };
+  }
+  const publicFile = ({ id, name, type, size, label, at }) => ({ id, name, type, size, label, at });
+  function listFilesOf(actor, id) { const p = ownAnyFile(actor, id); return [...db.files.values()].filter((f) => f.profile_id === p.id).map(publicFile); }
+  function readFile(actor, id, fid) {
+    const p = ownAnyFile(actor, id); const f = db.files.get(fid); if (!f || f.profile_id !== p.id) throw notFound();
+    const { data } = K.open(kms, f.rec, 'svc:attachment', 'attachment-view'); audit(actor, 'file.read', p.id, 'attachment'); return { ...publicFile(f), data };
+  }
+  function deleteFile(actor, id, fid) { const p = ownAnyFile(actor, id); const f = db.files.get(fid); if (!f || f.profile_id !== p.id) throw notFound(); db.files.delete(fid); audit(actor, 'file.delete', p.id, 'attachment'); return { ok: true }; }
 
   // ---------- الدعم الفني ----------
   function openTicket(actor, { classification, description, page } = {}) {
@@ -451,7 +533,7 @@ function createApp(opts = {}) {
 
   return { HttpError, db, kms, cfg, clock, POLICY_VERSION, CONSENT_TEXT, FREEZE_DAYS, SUP_PERMS, TICKET_CLASSES, audit, verifyAuditChain, newAccount, publicUser, login, session, reauth, logout, bootstrapAdmin,
     createDraft, readDraft, updateDraft, publicSchema, submitProfile, renewProfile, readProfile, correctProfile, runMatching, myMatches, decide, markContact, myFrozen, activateProfile, requestExemption, cancelProfile, purgeDue, restoreFromBackup, expirePairs,
-    listFiles, supervisorHome, requestComparison, suggestCorrection, previewOptions, openTicket, myTickets, ticketsAdmin, updateTicket,
+    listFiles, supervisorHome, requestComparison, addFile, listFilesOf, readFile, deleteFile, browseProfiles, browseProfile, directMatch, FILE_TYPES, FILE_MAX, FILES_PER_PROFILE, suggestCorrection, previewOptions, openTicket, myTickets, ticketsAdmin, updateTicket,
     adminDashboard, createAccount, resetAccount, setPerms, requestRoleChange, approveRoleChange, decideExemption, reassign, triggerMatch, auditLog, adminOverview };
 }
 module.exports = { createApp, HttpError };
